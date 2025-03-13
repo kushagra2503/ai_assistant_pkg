@@ -1,133 +1,74 @@
-# TermCrawl AI Assistant
+# AI Assistant
 
-A versatile AI assistant package with multi-model support and various integrations.
+A versatile AI assistant with multi-model support, speech recognition, and various productivity features.
 
 ## Features
 
-- Multi-model support (Google Gemini and OpenAI)
-- Conversation history management
-- Desktop screenshot capability
-- Browser crawling for web content analysis
-- Speech recognition
-- Google Calendar integration
-- Role-based system prompts for different use cases
+- **Multi-Model Support**: Use Google's Gemini or OpenAI's GPT models
+- **Speech Recognition**: Speak to your assistant
+- **Desktop Screenshot Analysis**: Share your screen for visual context
+- **Google Calendar Integration**: Manage your calendar events
+- **Task Management**: Keep track of your to-do list
+- **Role-Based Prompts**: Specialized assistance for different needs
+- **Conversation History**: Maintains context between interactions
 
-## Quick Installation
-
-You can install the package directly from GitHub:
+## Installation
 
 ```bash
-pip install git+https://github.com/kushagra2503/ai_assistant_pkg.git
+pip install ai-assistant
 ```
 
-For detailed installation instructions, see the [Installation Guide](INSTALLATION.md).
+Or install from source:
+
+```bash
+git clone https://github.com/yourusername/ai_assistant.git
+cd ai_assistant
+pip install -e .
+```
 
 ## Usage
-
-### As a Command-Line Application
-
-After installation, you can run TermCrawl AI Assistant directly from the command line:
 
 ```bash
 ai-assistant
 ```
 
-### As a Library in Your Code
+### Main Menu
 
-```python
-import asyncio
-from ai_assistant import Assistant, ROLE_PROMPTS
+- **S - Speak**: Use speech recognition to talk to the assistant
+- **T - Type**: Type your questions or commands
+- **C - Configure**: Change settings like AI model and role
+- **Q - Quit**: Exit the assistant
 
-# Initialize the AI Assistant
-assistant = Assistant(
-    model_choice="Gemini",  # or "OpenAI"
-    api_key="your-api-key",  # Optional, will use environment variable if not provided
-    role="Coding Assistant"  # Optional, defaults to "General"
-)
+### Special Commands
 
-# Define an async function to get responses
-async def get_response(prompt):
-    response = await assistant.answer_async(prompt)
-    print(f"AI Response: {response}")
+- **/help**: Show available commands
+- **/calendar list**: List upcoming events
+- **/calendar add "Event Title" "Start Time"**: Add a new event
 
-# Run the async function
-asyncio.run(get_response("Write a Python function to calculate the Fibonacci sequence"))
-```
+## Configuration
 
-### Using Browser Crawler
+The assistant supports different AI models and roles:
 
-```python
-from ai_assistant.utils.browser_crawler import BrowserCrawler
+### AI Models
+- Gemini (Google AI)
+- OpenAI (GPT-4, GPT-3.5)
 
-# Initialize the browser crawler
-browser = BrowserCrawler()
-
-# Capture content from open browser tabs
-browser_content = browser.capture()
-
-# Print the titles of captured pages
-for url, content in browser_content.items():
-    print(f"URL: {url}")
-    print(f"Title: {content['title']}")
-    print(f"Description: {content['meta_description']}")
-
-# Don't forget to close the browser when done
-browser.close()
-```
-
-### Using Google Calendar Integration
-
-```python
-import asyncio
-from ai_assistant import GoogleCalendarIntegration
-
-async def manage_calendar():
-    calendar = GoogleCalendarIntegration()
-    
-    # List upcoming events
-    events = await calendar.list_upcoming_events(max_results=5)
-    print(events)
-    
-    # Add a new event
-    result = await calendar.add_event(
-        summary="Team Meeting",
-        start_time="tomorrow at 10am",
-        end_time="tomorrow at 11am",
-        description="Weekly team sync",
-        location="Conference Room A"
-    )
-    print(result)
-
-asyncio.run(manage_calendar())
-```
-
-## Environment Variables
-
-The package looks for the following environment variables:
-
-- `GEMINI_API_KEY`: Your Google Gemini API key
-- `OPENAI_API_KEY`: Your OpenAI API key
-
-You can set these in a `.env` file in your project directory.
+### Assistant Roles
+- General
+- Tech Support
+- Coding Assistant
+- Business Consultant
+- Research Assistant
+- Creative Writer
+- Personal Coach
+- Data Analyst
+- Sales Agent
 
 ## Requirements
 
 - Python 3.7+
-- Required packages (automatically installed):
-  - google-generativeai
-  - openai
-  - SpeechRecognition
-  - pillow
-  - opencv-python
-  - python-dotenv
-  - google-api-python-client
-  - google-auth-httplib2
-  - google-auth-oauthlib
-  - python-dateutil
-  - gtts
-  - selenium
-  - webdriver-manager
-  - beautifulsoup4
+- API keys for the AI models you want to use
+- Google account for Calendar integration
 
 ## License
 

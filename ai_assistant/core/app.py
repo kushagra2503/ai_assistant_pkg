@@ -10,8 +10,8 @@ import re
 from dotenv import load_dotenv
 from ..core.assistant import Assistant
 from ..utils.screenshot import DesktopScreenshot
-from ..utils.browser_crawler import BrowserCrawler
 from ..integrations.calendar import GoogleCalendarIntegration
+from ..utils.task_manager import TaskManager
 
 # Load environment variables for API keys
 load_dotenv()
@@ -57,41 +57,77 @@ class AIAssistantApp:
     Attributes:
         config (dict): Application configuration
         desktop_screenshot (DesktopScreenshot): Desktop screenshot utility
-        browser_crawler (BrowserCrawler): Browser crawling utility
         assistant (Assistant): AI assistant instance
         calendar (GoogleCalendarIntegration): Google Calendar integration
+        task_manager (TaskManager): Task manager for managing tasks
     """
     
     def __init__(self):
         """Initialize the AI Assistant application."""
         self.config = load_config()
         self.desktop_screenshot = DesktopScreenshot()
-        self.browser_crawler = BrowserCrawler()
         self.assistant = None
         self.calendar = GoogleCalendarIntegration()
+        self.task_manager = TaskManager()
         self.initialize_assistant()
         self.register_functions()
+        
+        # After initializing the assistant, connect it to the task manager
+        if self.assistant:
+            self.task_manager.assistant = self.assistant
 
     def initialize_assistant(self):
-        """Initialize the AI assistant with the configured model and role."""
-        model_name = self.config.get("model", "Gemini")
-        role = self.config.get("role", "General")
-        
-        # Try to get API key from environment first
-        api_key = os.getenv(f"{model_name.upper()}_API_KEY")
-        
-        # If not in environment, try from config
-        if not api_key:
-            api_key = self.config.get("api_key")
+        """Initialize the AI assistant with better error handling."""
+        try:
+            model_name = self.config.get("model", "Gemini")
+            role = self.config.get("role", "General")
             
-        if not api_key:
-            print(f"No API key found for {model_name}. Please enter it.")
-            api_key = input(f"Enter your {model_name} API Key: ").strip()
-            # Save in config but not as environment variable for security
-            self.config["api_key"] = api_key
-            save_config(self.config)
+            # Try to get API key from environment first
+            api_key = os.getenv(f"{model_name.upper()}_API_KEY")
             
-        self.assistant = Assistant(model_name, api_key, role)
+            # If not in environment, try from config
+            if not api_key:
+                api_key = self.config.get("api_key")
+                
+            if not api_key:
+                print(f"\n⚠️ No API key found for {model_name}.")
+                print("Please enter your API key or press Enter to switch to a different model.")
+                api_key = input(f"Enter your {model_name} API Key (or press Enter to switch models): ").strip()
+                
+                if not api_key:
+                    # Switch to alternative model
+                    model_name = "OpenAI" if model_name == "Gemini" else "Gemini"
+                    print(f"\nSwitching to {model_name}...")
+                    api_key = os.getenv(f"{model_name.upper()}_API_KEY")
+                    if not api_key:
+                        api_key = input(f"Enter your {model_name} API Key: ").strip()
+                
+                # Save in config but not as environment variable for security
+                self.config["model"] = model_name
+                self.config["api_key"] = api_key
+                save_config(self.config)
+                
+            try:
+                self.assistant = Assistant(model_name, api_key, role)
+                print(f"\n✅ Successfully initialized {model_name} assistant with role: {role}")
+            except Exception as e:
+                print(f"\n❌ Error initializing {model_name}: {str(e)}")
+                print("Would you like to try a different model?")
+                if input("Switch models? (y/n): ").lower().startswith('y'):
+                    # Switch to alternative model
+                    model_name = "OpenAI" if model_name == "Gemini" else "Gemini"
+                    print(f"\nTrying {model_name}...")
+                    self.config["model"] = model_name
+                    save_config(self.config)
+                    self.initialize_assistant()  # Recursive call with new model
+                else:
+                    raise
+                
+        except Exception as e:
+            print(f"\n❌ Could not initialize AI assistant: {str(e)}")
+            print("Please check your API keys and internet connection.")
+            if input("Would you like to reconfigure? (y/n): ").lower().startswith('y'):
+                self.configure()
 
     def register_functions(self):
         """Register special command functions."""
@@ -99,7 +135,6 @@ class AIAssistantApp:
             "/calendar": self.calendar_command,
             "/help": self.show_help,
             "/document": self.document_command,
-            "/browser": self.browser_command
         }
 
     async def process_command(self, text):
@@ -135,8 +170,6 @@ class AIAssistantApp:
         print("  /calendar list - List upcoming events")
         print("  /calendar add \"Meeting with Team\" \"tomorrow at 3pm\" - Add a new event")
         print("  /calendar add \"Doctor Appointment\" \"2023-06-15 14:00\" \"2023-06-15 15:00\" \"Annual checkup\" \"123 Medical Center\" - Add detailed event")
-        print("/browser - Crawl browser content")
-        print("  /browser crawl - Capture content from open browser tabs")
 
     async def calendar_command(self, args):
         """
@@ -197,49 +230,15 @@ class AIAssistantApp:
         """
         print("\n📄 Document analysis functionality is not implemented in this version.")
 
-    async def browser_command(self, args):
-        """
-        Handle browser-related commands.
-        
-        Args:
-            args (str): Command arguments
-        """
-        if not args:
-            print("\n🌐 Browser Commands:")
-            print("crawl - Capture content from open browser tabs")
-            return
-            
-        parts = args.split(maxsplit=1)
-        subcommand = parts[0].lower()
-        
-        if subcommand == "crawl":
-            print("\n🔄 Crawling browser content...")
-            try:
-                browser_content = self.browser_crawler.capture(force_new=True)
-                if "error" in browser_content:
-                    print(f"\n❌ Error crawling browser: {browser_content['error']}")
-                    print("Make sure you have Chrome browser installed and accessible.")
-                else:
-                    print("\n✅ Browser content captured successfully!")
-                    for url, content in browser_content.items():
-                        print(f"\nURL: {url}")
-                        print(f"Title: {content['title']}")
-            except Exception as e:
-                print(f"\n❌ Error during browser crawl: {e}")
-        else:
-            print(f"\n❌ Unknown browser subcommand: {subcommand}")
-            print("Available subcommands: crawl")
-
     async def run(self):
         """Run the AI Assistant application."""
-        print("\n🤖 TermCrawl AI Assistant initialized.")
+        print("\n🤖 AI Assistant initialized.")
         print("------------------------------")
         
         while True:
             print("\nWhat would you like to do?")
             print("S - Speak to the assistant")
             print("T - Type a question")
-            print("B - Browser crawl")
             print("C - Configure settings")
             print("Q - Quit")
             
@@ -251,9 +250,6 @@ class AIAssistantApp:
             elif user_input == 't':
                 await self.handle_text_input()
                 print("\n✅ Ready for next command...")
-            elif user_input == 'b':
-                await self.handle_browser_crawl_input()
-                print("\n✅ Ready for next command...")
             elif user_input == 'c':
                 await self.configure()
                 print("\n✅ Settings updated. Ready for next command...")
@@ -261,7 +257,7 @@ class AIAssistantApp:
                 print("\nExiting assistant. Goodbye! 👋")
                 break
             else:
-                print("\n❌ Invalid input. Please choose S, T, B, C, or Q.")
+                print("\n❌ Invalid input. Please choose S, T, C, or Q.")
 
     async def handle_speech_input(self):
         """Handle speech input from the user."""
@@ -409,54 +405,88 @@ class AIAssistantApp:
         try:
             # Show animated progress indicator
             print("\n🔄 Starting browser crawl...", flush=True)
+            # Capture screenshot and detect URLs
+            self.desktop_screenshot.capture(force_new=True)
+            detected_urls = self.desktop_screenshot.detect_urls()
+            
+            if not detected_urls:
+                print("\n⚠️ No URLs detected in your screen.")
+                print("Would you like to enter a URL manually?")
+                if input("Enter URL manually? (y/n): ").lower().startswith('y'):
+                    url = input("\nEnter the URL to analyze (e.g., https://example.com): ").strip()
+                    if not url:
+                        print("\n⚠️ No URL provided.")
+                        return
+                else:
+                    return
+            else:
+                # Show detected URLs and let user choose
+                print("\nDetected URLs:")
+                for i, url in enumerate(detected_urls, 1):
+                    print(f"{i}. {url}")
+                
+                choice = input("\nSelect URL number to analyze (or enter a different URL): ").strip()
+                
+                if choice.isdigit() and 1 <= int(choice) <= len(detected_urls):
+                    url = detected_urls[int(choice) - 1]
+                else:
+                    url = choice
+            
+            # Add https:// if missing
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            
+            # Show animated progress indicator
+            print(f"\n🔄 Analyzing {url}...", flush=True)
             loading_task = asyncio.create_task(self._animated_loading())
             
             try:
-                # Add a small delay to ensure spinner starts before heavy processing
                 await asyncio.sleep(0.1)
-                
-                browser_content = self.browser_crawler.capture(force_new=True)
+                browser_content = self.browser_crawler.capture(force_new=True, url=url)
                 
                 if "error" in browser_content:
-                    print(f"\n❌ Error crawling browser: {browser_content['error']}")
-                    print("Make sure you have Chrome browser installed and accessible.")
+                    print(f"\n⚠️ {browser_content['error']}")
                     return
                 
                 if not browser_content:
-                    print("\n⚠️ No browser content was captured. Make sure you have browser tabs open.")
+                    print("\n⚠️ No content was captured from the website.")
                     return
                 
-                # Ask for user's question about the browser content
-                prompt = input("\nWhat would you like to know about the browser content? ").strip()
+                # If we got here, we have content
+                content = list(browser_content.values())[0]
+                print(f"\n✅ Successfully analyzed: {content['title']}")
+                
+                # Ask what the user wants to know about the content
+                print("\nWhat would you like to know about this website?")
+                prompt = input("Enter your question: ").strip()
+                
                 if not prompt:
-                    print("\n⚠️ No input provided. Please try again.")
+                    print("\n⚠️ No question provided.")
                     return
                 
                 # Prepare context for the AI
-                context = "Browser Content:\n"
-                for url, content in browser_content.items():
-                    context += f"\nURL: {url}\n"
-                    context += f"Title: {content['title']}\n"
-                    context += f"Description: {content['meta_description']}\n"
-                    context += f"Content: {content['main_content'][:1000]}...\n"  # Truncate to avoid token limits
+                context = f"Website Analysis for {url}:\n\n"
+                context += f"Title: {content['title']}\n"
+                context += f"Description: {content['meta_description']}\n\n"
+                context += "Main Headings:\n"
+                for heading in content['headings'][:5]:
+                    context += f"- {heading}\n"
+                context += "\nContent Summary:\n"
+                context += content['main_content'][:1500] + "...\n\n"
                 
-                # Combine the context with the user's question
-                full_prompt = f"{context}\n\nUser Question: {prompt}\n\nPlease answer the question based on the browser content."
+                # Process with AI
+                full_prompt = f"{context}\n\nUser Question: {prompt}\n\nPlease answer based on the website content."
                 
-                # Get response from assistant
-                response = await self.assistant.answer_async(full_prompt, None)
+                response = await self.assistant.answer_async(full_prompt)
                 print(f"\n🤖 {response}")
                 
             finally:
-                # Ensure spinner is properly canceled and cleaned up
                 loading_task.cancel()
                 try:
                     await loading_task
                 except asyncio.CancelledError:
                     pass
-                # Make sure the line is clear
                 print("\r" + " " * 50 + "\r", end="", flush=True)
                 
         except Exception as e:
-            print(f"\n❌ Error during browser crawl: {e}")
-            print("Make sure you have Chrome browser installed and accessible.")
+            print(f"\n❌ Error analyzing website: {str(e)}")
