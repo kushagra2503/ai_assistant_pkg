@@ -1,6 +1,6 @@
 # TermCrawl AI Assistant
 
-A versatile AI assistant package with multi-model support and various integrations.
+What is TermCrawl AI Assistant Package, It is a package made for scraping the screen and based on that user can asks queries to Ai.
 
 ## Features
 
