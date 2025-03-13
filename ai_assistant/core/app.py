@@ -10,6 +10,7 @@ import re
 from dotenv import load_dotenv
 from ..core.assistant import Assistant
 from ..utils.screenshot import DesktopScreenshot
+from ..utils.browser_crawler import BrowserCrawler
 from ..integrations.calendar import GoogleCalendarIntegration
 
 # Load environment variables for API keys
@@ -56,6 +57,7 @@ class AIAssistantApp:
     Attributes:
         config (dict): Application configuration
         desktop_screenshot (DesktopScreenshot): Desktop screenshot utility
+        browser_crawler (BrowserCrawler): Browser crawling utility
         assistant (Assistant): AI assistant instance
         calendar (GoogleCalendarIntegration): Google Calendar integration
     """
@@ -64,6 +66,7 @@ class AIAssistantApp:
         """Initialize the AI Assistant application."""
         self.config = load_config()
         self.desktop_screenshot = DesktopScreenshot()
+        self.browser_crawler = BrowserCrawler()
         self.assistant = None
         self.calendar = GoogleCalendarIntegration()
         self.initialize_assistant()
@@ -95,7 +98,8 @@ class AIAssistantApp:
         self.functions = {
             "/calendar": self.calendar_command,
             "/help": self.show_help,
-            "/document": self.document_command
+            "/document": self.document_command,
+            "/browser": self.browser_command
         }
 
     async def process_command(self, text):
@@ -131,6 +135,8 @@ class AIAssistantApp:
         print("  /calendar list - List upcoming events")
         print("  /calendar add \"Meeting with Team\" \"tomorrow at 3pm\" - Add a new event")
         print("  /calendar add \"Doctor Appointment\" \"2023-06-15 14:00\" \"2023-06-15 15:00\" \"Annual checkup\" \"123 Medical Center\" - Add detailed event")
+        print("/browser - Crawl browser content")
+        print("  /browser crawl - Capture content from open browser tabs")
 
     async def calendar_command(self, args):
         """
@@ -191,6 +197,39 @@ class AIAssistantApp:
         """
         print("\n📄 Document analysis functionality is not implemented in this version.")
 
+    async def browser_command(self, args):
+        """
+        Handle browser-related commands.
+        
+        Args:
+            args (str): Command arguments
+        """
+        if not args:
+            print("\n🌐 Browser Commands:")
+            print("crawl - Capture content from open browser tabs")
+            return
+            
+        parts = args.split(maxsplit=1)
+        subcommand = parts[0].lower()
+        
+        if subcommand == "crawl":
+            print("\n🔄 Crawling browser content...")
+            try:
+                browser_content = self.browser_crawler.capture(force_new=True)
+                if "error" in browser_content:
+                    print(f"\n❌ Error crawling browser: {browser_content['error']}")
+                    print("Make sure you have Chrome browser installed and accessible.")
+                else:
+                    print("\n✅ Browser content captured successfully!")
+                    for url, content in browser_content.items():
+                        print(f"\nURL: {url}")
+                        print(f"Title: {content['title']}")
+            except Exception as e:
+                print(f"\n❌ Error during browser crawl: {e}")
+        else:
+            print(f"\n❌ Unknown browser subcommand: {subcommand}")
+            print("Available subcommands: crawl")
+
     async def run(self):
         """Run the AI Assistant application."""
         print("\n🤖 TermCrawl AI Assistant initialized.")
@@ -200,6 +239,7 @@ class AIAssistantApp:
             print("\nWhat would you like to do?")
             print("S - Speak to the assistant")
             print("T - Type a question")
+            print("B - Browser crawl")
             print("C - Configure settings")
             print("Q - Quit")
             
@@ -211,6 +251,9 @@ class AIAssistantApp:
             elif user_input == 't':
                 await self.handle_text_input()
                 print("\n✅ Ready for next command...")
+            elif user_input == 'b':
+                await self.handle_browser_crawl_input()
+                print("\n✅ Ready for next command...")
             elif user_input == 'c':
                 await self.configure()
                 print("\n✅ Settings updated. Ready for next command...")
@@ -218,7 +261,7 @@ class AIAssistantApp:
                 print("\nExiting assistant. Goodbye! 👋")
                 break
             else:
-                print("\n❌ Invalid input. Please choose S, T, C, or Q.")
+                print("\n❌ Invalid input. Please choose S, T, B, C, or Q.")
 
     async def handle_speech_input(self):
         """Handle speech input from the user."""
@@ -357,3 +400,63 @@ class AIAssistantApp:
         save_config(self.config)
         self.initialize_assistant()
         print(f"API key updated for {model}")
+
+    async def handle_browser_crawl_input(self):
+        """Handle browser crawl input from the user."""
+        print("\n🌐 Browser Crawl")
+        print("This feature will capture content from your open browser tabs.")
+        
+        try:
+            # Show animated progress indicator
+            print("\n🔄 Starting browser crawl...", flush=True)
+            loading_task = asyncio.create_task(self._animated_loading())
+            
+            try:
+                # Add a small delay to ensure spinner starts before heavy processing
+                await asyncio.sleep(0.1)
+                
+                browser_content = self.browser_crawler.capture(force_new=True)
+                
+                if "error" in browser_content:
+                    print(f"\n❌ Error crawling browser: {browser_content['error']}")
+                    print("Make sure you have Chrome browser installed and accessible.")
+                    return
+                
+                if not browser_content:
+                    print("\n⚠️ No browser content was captured. Make sure you have browser tabs open.")
+                    return
+                
+                # Ask for user's question about the browser content
+                prompt = input("\nWhat would you like to know about the browser content? ").strip()
+                if not prompt:
+                    print("\n⚠️ No input provided. Please try again.")
+                    return
+                
+                # Prepare context for the AI
+                context = "Browser Content:\n"
+                for url, content in browser_content.items():
+                    context += f"\nURL: {url}\n"
+                    context += f"Title: {content['title']}\n"
+                    context += f"Description: {content['meta_description']}\n"
+                    context += f"Content: {content['main_content'][:1000]}...\n"  # Truncate to avoid token limits
+                
+                # Combine the context with the user's question
+                full_prompt = f"{context}\n\nUser Question: {prompt}\n\nPlease answer the question based on the browser content."
+                
+                # Get response from assistant
+                response = await self.assistant.answer_async(full_prompt, None)
+                print(f"\n🤖 {response}")
+                
+            finally:
+                # Ensure spinner is properly canceled and cleaned up
+                loading_task.cancel()
+                try:
+                    await loading_task
+                except asyncio.CancelledError:
+                    pass
+                # Make sure the line is clear
+                print("\r" + " " * 50 + "\r", end="", flush=True)
+                
+        except Exception as e:
+            print(f"\n❌ Error during browser crawl: {e}")
+            print("Make sure you have Chrome browser installed and accessible.")

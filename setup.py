@@ -31,6 +31,9 @@ setup(
         "google-auth-oauthlib",
         "python-dateutil",
         "gtts",
+        "selenium",
+        "webdriver-manager",
+        "beautifulsoup4",
     ],
     entry_points={
         "console_scripts": [

@@ -7,6 +7,7 @@ A versatile AI assistant package with multi-model support and various integratio
 - Multi-model support (Google Gemini and OpenAI)
 - Conversation history management
 - Desktop screenshot capability
+- Browser crawling for web content analysis
 - Speech recognition
 - Google Calendar integration
 - Role-based system prompts for different use cases
@@ -51,6 +52,27 @@ async def get_response(prompt):
 
 # Run the async function
 asyncio.run(get_response("Write a Python function to calculate the Fibonacci sequence"))
+```
+
+### Using Browser Crawler
+
+```python
+from ai_assistant.utils.browser_crawler import BrowserCrawler
+
+# Initialize the browser crawler
+browser = BrowserCrawler()
+
+# Capture content from open browser tabs
+browser_content = browser.capture()
+
+# Print the titles of captured pages
+for url, content in browser_content.items():
+    print(f"URL: {url}")
+    print(f"Title: {content['title']}")
+    print(f"Description: {content['meta_description']}")
+
+# Don't forget to close the browser when done
+browser.close()
 ```
 
 ### Using Google Calendar Integration
@@ -103,6 +125,9 @@ You can set these in a `.env` file in your project directory.
   - google-auth-oauthlib
   - python-dateutil
   - gtts
+  - selenium
+  - webdriver-manager
+  - beautifulsoup4
 
 ## License
 
