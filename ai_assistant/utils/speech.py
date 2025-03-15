@@ -9,32 +9,40 @@ logger = logging.getLogger("ai_assistant")
 
 def listen_for_speech():
     """
-    Listen for speech input from the microphone and convert to text.
+    Listen for speech input from the microphone.
     
     Returns:
-        str or None: Recognized text or None if recognition failed
+        str: Recognized speech text or None if not recognized
     """
     recognizer = sr.Recognizer()
-    microphone = sr.Microphone()
-
-    try:
-        with microphone as source:
-            print("🎤 Speak now...")
-            recognizer.adjust_for_ambient_noise(source)
-            audio = recognizer.listen(source)
-
+    
+    with sr.Microphone() as source:
+        # Adjust for ambient noise
+        recognizer.adjust_for_ambient_noise(source)
+        
         try:
-            prompt = recognizer.recognize_google(audio, language="en")
-            print(f"🗣 You said: {prompt}")
-            return prompt
+            # Listen for audio input
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+            
+            # Recognize speech using Google Speech Recognition
+            text = recognizer.recognize_google(audio)
+            
+            # Improve GitHub term recognition
+            text = text.replace("get hub", "github")
+            text = text.replace("get have", "github")
+            text = text.replace("good hub", "github")
+            text = text.replace("repository", "repository")
+            text = text.replace("repo", "repo")
+            
+            return text
+            
+        except sr.WaitTimeoutError:
+            return None
         except sr.UnknownValueError:
-            print("❌ Speech not recognized. Try again.")
+            return None
+        except sr.RequestError:
+            print("\n❌ Could not request results from speech recognition service.")
             return None
         except Exception as e:
-            logger.error(f"Speech recognition error: {e}")
-            print(f"❌ Error in speech recognition: {e}")
+            print(f"\n❌ Speech recognition error: {e}")
             return None
-    except Exception as e:
-        logger.error(f"Microphone error: {e}")
-        print(f"❌ Error accessing microphone: {e}")
-        return None

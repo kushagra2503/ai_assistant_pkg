@@ -1,25 +1,28 @@
+#!/usr/bin/env python
 """
-Command-line interface for the AI Assistant.
+Command-line interface for QuackQuery.
 """
 
 import asyncio
 import logging
+import os
+import sys
 from .core.app import AIAssistantApp
 
-def setup_logging():
-    """Set up logging configuration."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler("assistant.log"),
-            logging.StreamHandler()
-        ]
-    )
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("quackquery.log"),  # Change from "assistant.log" to "quackquery.log"
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger("quackquery")  # Change from "ai_assistant" to "quackquery"
 
 def main():
-    """Main entry point for the AI Assistant CLI."""
-    setup_logging()
+    """Main entry point for the QuackQuery CLI."""
     app = AIAssistantApp()
     asyncio.run(app.run())
 

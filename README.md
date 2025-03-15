@@ -1,109 +1,67 @@
-# TermCrawl AI Assistant
+# QuackQuery
 
-What is TermCrawl AI Assistant Package, It is a package made for scraping the screen and based on that user can asks queries to Ai.
+QuackQuery is a versatile AI assistant with multiple integrations including GitHub automation, file management, and application launching capabilities.
 
 ## Features
 
-- Multi-model support (Google Gemini and OpenAI)
-- Conversation history management
-- Desktop screenshot capability
-- Speech recognition
-- Google Calendar integration
-- Role-based system prompts for different use cases
+- **Multi-model AI Support**: Seamlessly switch between Google Gemini and OpenAI models
+- **Natural Language Commands**: Control your computer with simple English instructions
+- **GitHub Integration**: Create repositories, manage issues, and more with voice or text
+- **File Management**: Navigate, create, move, and search files using natural language
+- **Application Automation**: Launch applications with simple voice commands
+- **OCR Capabilities**: Extract text from images and screenshots
+- **Voice Recognition**: Interact with the assistant using speech
+- **Desktop Screenshots**: Capture and analyze your screen
+- **Role-based Personalities**: Switch between different assistant roles for specialized help
 
-## Quick Installation
+## Installation
 
-You can install the package directly from GitHub:
+### From PyPI (Recommended)
 
 ```bash
-pip install git+https://github.com/kushagra2503/ai_assistant_pkg.git
+pip install QuackQuery
 ```
 
-For detailed installation instructions, see the [Installation Guide](INSTALLATION.md).
+### From Source
+
+```bash
+git clone https://github.com/kushagra2503/ai_assistant.git
+cd ai_assistant
+pip install -e .
+```
+
+## Quick Start
+
+After installation, run QuackQuery from your terminal:
+
+```bash
+quackquery
+```
+
+On first run, you'll be prompted to configure your API keys.
+
+## API Keys
+
+QuackQuery requires at least one of the following API keys:
+
+- **Google Gemini API key**: Get from [Google AI Studio](https://makersuite.google.com/app/apikey)
+- **OpenAI API key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
+
+You can set these as environment variables:
+```bash
+# For Windows
+set GEMINI_API_KEY=your_gemini_api_key
+set OPENAI_API_KEY=your_openai_api_key
+
+# For Linux/macOS
+export GEMINI_API_KEY=your_gemini_api_key
+export OPENAI_API_KEY=your_openai_api_key
+```
+
+Or create a `.env` file in your working directory:
 
 ## Usage
 
-### As a Command-Line Application
-
-After installation, you can run TermCrawl AI Assistant directly from the command line:
-
 ```bash
-ai-assistant
+quackquery
 ```
-
-### As a Library in Your Code
-
-```python
-import asyncio
-from ai_assistant import Assistant, ROLE_PROMPTS
-
-# Initialize the AI Assistant
-assistant = Assistant(
-    model_choice="Gemini",  # or "OpenAI"
-    api_key="your-api-key",  # Optional, will use environment variable if not provided
-    role="Coding Assistant"  # Optional, defaults to "General"
-)
-
-# Define an async function to get responses
-async def get_response(prompt):
-    response = await assistant.answer_async(prompt)
-    print(f"AI Response: {response}")
-
-# Run the async function
-asyncio.run(get_response("Write a Python function to calculate the Fibonacci sequence"))
-```
-
-### Using Google Calendar Integration
-
-```python
-import asyncio
-from ai_assistant import GoogleCalendarIntegration
-
-async def manage_calendar():
-    calendar = GoogleCalendarIntegration()
-    
-    # List upcoming events
-    events = await calendar.list_upcoming_events(max_results=5)
-    print(events)
-    
-    # Add a new event
-    result = await calendar.add_event(
-        summary="Team Meeting",
-        start_time="tomorrow at 10am",
-        end_time="tomorrow at 11am",
-        description="Weekly team sync",
-        location="Conference Room A"
-    )
-    print(result)
-
-asyncio.run(manage_calendar())
-```
-
-## Environment Variables
-
-The package looks for the following environment variables:
-
-- `GEMINI_API_KEY`: Your Google Gemini API key
-- `OPENAI_API_KEY`: Your OpenAI API key
-
-You can set these in a `.env` file in your project directory.
-
-## Requirements
-
-- Python 3.7+
-- Required packages (automatically installed):
-  - google-generativeai
-  - openai
-  - SpeechRecognition
-  - pillow
-  - opencv-python
-  - python-dotenv
-  - google-api-python-client
-  - google-auth-httplib2
-  - google-auth-oauthlib
-  - python-dateutil
-  - gtts
-
-## License
-
-MIT

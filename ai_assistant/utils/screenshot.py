@@ -57,9 +57,17 @@ class DesktopScreenshot:
             return self.cached_image
             
         try:
-            screenshot = ImageGrab.grab()
-            screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-            self.cached_image = encode_image(screenshot)
+            # Capture the screenshot
+            pil_screenshot = ImageGrab.grab()
+            
+            # Convert to numpy array and store the raw screenshot
+            self.screenshot = np.array(pil_screenshot)
+            
+            # Convert to BGR for OpenCV operations
+            screenshot_bgr = cv2.cvtColor(self.screenshot, cv2.COLOR_RGB2BGR)
+            
+            # Encode for API usage
+            self.cached_image = encode_image(screenshot_bgr)
             self.last_capture_time = current_time
             return self.cached_image
         except Exception as e:

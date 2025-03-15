@@ -4,19 +4,30 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="ai_assistant",
+    name="QuackQuery",
     version="0.1.0",
-    author="AI Assistant Developer",
-    author_email="example@example.com",
+    author="Kushagra",
+    author_email="radhikayash2@gmail.com",
     description="A versatile AI assistant with multi-model support",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/ai_assistant",
+    url="https://github.com/kushagra2503/ai_assistant",
+    project_urls={
+        "Bug Tracker": "https://github.com/kushagra2503/ai_assistant/issues",
+        "Documentation": "https://github.com/kushagra2503/ai_assistant#readme",
+        "Source Code": "https://github.com/kushagra2503/ai_assistant",
+    },
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: End Users/Desktop",
+        "Topic :: Utilities",
     ],
     python_requires=">=3.7",
     install_requires=[
@@ -26,15 +37,15 @@ setup(
         "pillow",
         "opencv-python",
         "python-dotenv",
-        "google-api-python-client",
-        "google-auth-httplib2",
-        "google-auth-oauthlib",
-        "python-dateutil",
         "gtts",
+        "pytesseract",
+        "requests",
+        "send2trash",
+        "pywin32; platform_system == 'Windows'",
     ],
     entry_points={
         "console_scripts": [
-            "ai-assistant=ai_assistant.cli:main",
+            "quackquery=ai_assistant.cli:main",
         ],
     },
 )
