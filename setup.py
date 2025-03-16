@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="QuackQuery",
-    version="0.1.0",
+    version="0.1.1",
     author="Kushagra",
     author_email="radhikayash2@gmail.com",
     description="A versatile AI assistant with multi-model support",
@@ -42,6 +42,7 @@ setup(
         "requests",
         "send2trash",
         "pywin32; platform_system == 'Windows'",
+        "pyaudio",
     ],
     entry_points={
         "console_scripts": [
