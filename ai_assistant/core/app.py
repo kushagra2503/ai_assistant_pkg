@@ -7,6 +7,7 @@ import json
 import logging
 import asyncio
 import re
+import getpass
 from dotenv import load_dotenv
 from ..core.assistant import Assistant
 from ..utils.screenshot import DesktopScreenshot
@@ -17,6 +18,8 @@ from ..integrations.file_explorer import FileExplorer
 from ..utils.file_intent import FileIntentParser
 from ..utils.app_intent import AppIntentParser
 from ..integrations.app_launcher import AppLauncher
+from ..integrations.email_manager import EmailManager
+from ..utils.email_intent import EmailIntentParser
 
 # Load environment variables for API keys
 load_dotenv()
@@ -71,7 +74,7 @@ class AIAssistantApp:
         app_intent_parser (AppIntentParser): App intent parser
         app_launcher (AppLauncher): App launcher for application launching
     """
-    
+
     def __init__(self):
         """Initialize the AI Assistant application."""
         self.config = load_config()
@@ -88,6 +91,18 @@ class AIAssistantApp:
         # Initialize app launcher and intent parser
         self.app_launcher = AppLauncher()
         self.app_intent_parser = AppIntentParser()
+        
+        # Initialize Email components
+        try:
+            self.email_manager = EmailManager()
+            self.email_intent_parser = EmailIntentParser()
+            self.email_setup_complete = os.path.exists(self.email_manager.config_path)
+        except Exception as e:
+            logger.error(f"Error initializing email components: {str(e)}")
+            self.email_manager = None
+            self.email_intent_parser = None
+            self.email_setup_complete = False
+        
         self.initialize_assistant()
         self.register_functions()
 
@@ -105,6 +120,12 @@ class AIAssistantApp:
             
         if not api_key:
             print(f"No API key found for {model_name}. Please enter it.")
+            if model_name == "Gemini":
+                print("\n❗ If you don't have a Gemini API key yet:")
+                print("1. Visit https://aistudio.google.com/app/apikey")
+                print("2. Sign in with your Google account")
+                print("3. Click 'Create API key' and follow the prompts")
+                print("4. Copy the generated API key and paste it below\n")
             api_key = input(f"Enter your {model_name} API Key: ").strip()
             # Save in config but not as environment variable for security
             self.config["api_key"] = api_key
@@ -160,6 +181,14 @@ class AIAssistantApp:
         print("- Example: 'Create a new GitHub repository called my-project'")
         print("- Example: 'Delete the GitHub repository called my-project'")
         print("- Configure your GitHub token in the settings menu (option C)")
+        
+        print("\nEmail Integration:")
+        print("- You can use natural language to perform email operations")
+        print("- Example: 'Send email to john@example.com'")
+        print("- Example: 'Check my emails'")
+        print("- Example: 'Read email 3'")
+        print("- Example: 'AI write an email to boss@company.com'")
+        print("- Configure your email account in the settings menu (option C)")
 
     async def document_command(self, args):
         """
@@ -292,6 +321,25 @@ class AIAssistantApp:
             if command_processed:
                 return
         
+        # Direct check for AI email composition
+        ai_email_match = re.search(r'(?:ai|assistant|help me)\s+(?:write|compose|draft|create)\s+(?:an\s+)?(?:email|mail|message)', prompt.lower())
+        if ai_email_match:
+            logger.info("Detected AI email composition request directly")
+            # Extract email address if present
+            email_match = re.search(r'to\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', prompt.lower())
+            to_address = email_match.group(1) if email_match else None
+            
+            # Create an intent dictionary
+            ai_email_intent = {
+                'operation': 'ai_compose_email',
+                'to_address': to_address
+            }
+            
+            # Handle the AI email composition
+            result = await self.handle_email_operation(ai_email_intent, prompt)
+            print(f"\n🤖 {result}")
+            return
+        
         # Check for App intent - Move this check to the top for priority
         logger.info(f"Checking for app intent: '{prompt}'")
         app_intent = self.app_intent_parser.parse_intent(prompt)
@@ -309,6 +357,41 @@ class AIAssistantApp:
             result = await self.handle_github_operation(github_intent)
             print(f"\n🤖 {result}")
             return
+        
+        # Check for Email intent
+        logger.info(f"Checking for email intent: '{prompt}'")
+        if hasattr(self, 'email_intent_parser') and self.email_intent_parser:
+            try:
+                email_intent = self.email_intent_parser.parse_intent(prompt)
+                if email_intent:
+                    logger.info(f"Found email intent: {email_intent}")
+                    
+                    # If the operation is setup_email, redirect to configuration
+                    if email_intent.get('operation') == 'setup_email':
+                        print("\n📧 Redirecting to email configuration...")
+                        await self.configure_email()
+                        return
+                    
+                    # For other operations, check if email is set up
+                    if not hasattr(self, 'email_setup_complete') or not self.email_setup_complete:
+                        print("\n⚠️ Your email account is not set up yet.")
+                        setup = input("Would you like to set up your email account now? (y/n): ").strip().lower()
+                        
+                        if setup == 'y':
+                            await self.configure_email()
+                            if not self.email_setup_complete:
+                                return
+                        else:
+                            print("\n❌ Email operation canceled. Please set up your email account first.")
+                            return
+                    
+                    result = await self.handle_email_operation(email_intent, prompt)
+                    print(f"\n🤖 {result}")
+                    return
+            except Exception as e:
+                logger.error(f"Error processing email intent: {e}")
+                print(f"\n❌ Error processing email command: {e}")
+                return
         
         # Check for File intent
         logger.info(f"Checking for file intent: '{prompt}'")
@@ -371,9 +454,10 @@ class AIAssistantApp:
         print("2. Change Assistant Role")
         print("3. Update API Key")
         print("4. Configure GitHub Integration")
-        print("5. Back to main menu")
+        print("5. Configure Email Account")
+        print("6. Back to main menu")
         
-        choice = input("Enter choice (1-5): ").strip()
+        choice = input("Enter choice (1-6): ").strip()
         
         if choice == "1":
             self.change_model()
@@ -383,6 +467,8 @@ class AIAssistantApp:
             self.update_api_key()
         elif choice == "4":
             self.configure_github()
+        elif choice == "5":
+            await self.configure_email()
         else:
             return
 
@@ -906,3 +992,563 @@ class AIAssistantApp:
         except Exception as e:
             logger.error(f"Error launching app: {e}")
             return f"Error launching application: {str(e)}"
+
+    async def configure_email(self):
+        """Configure email account settings."""
+        print("\nEmail Account Configuration:")
+        print("1. Set up email account")
+        print("2. View current email status")
+        print("3. Remove email account")
+        print("4. Back to configuration menu")
+        
+        choice = input("Enter choice (1-4): ").strip()
+        
+        if choice == "1":
+            # Initialize Email components if not already done
+            if not hasattr(self, 'email_manager') or not self.email_manager:
+                self.email_manager = EmailManager()
+                self.email_intent_parser = EmailIntentParser()
+            
+            email_address = input("Enter your email address: ").strip()
+            password = getpass.getpass("Enter your email password or app password: ")
+            
+            result = self.email_manager.setup_email_account(email_address, password)
+            print(result)
+            
+            self.email_setup_complete = os.path.exists(self.email_manager.config_path)
+            print(f"Email setup complete: {self.email_setup_complete}")
+            
+        elif choice == "2":
+            if hasattr(self, 'email_manager') and self.email_manager:
+                if os.path.exists(self.email_manager.config_path):
+                    print("\n✅ Email Status: Configured")
+                    print(f"Email configuration file: {self.email_manager.config_path}")
+                    
+                    # Try to load the email configuration to show the email address
+                    try:
+                        # Check if the method exists
+                        if hasattr(self.email_manager, 'load_email_config'):
+                            config = self.email_manager.load_email_config()
+                            if config and 'email' in config:
+                                print(f"Email address: {config['email']}")
+                            else:
+                                print("Email address: Not available")
+                        else:
+                            # Alternative approach if method doesn't exist
+                            try:
+                                with open(self.email_manager.config_path, 'r') as f:
+                                    config = json.load(f)
+                                    if 'email' in config:
+                                        print(f"Email address: {config['email']}")
+                                    else:
+                                        print("Email address: Not available")
+                            except Exception as e:
+                                print(f"Could not read email configuration: {e}")
+                    except Exception as e:
+                        print(f"Error accessing email configuration: {e}")
+                else:
+                    print("\n⚠️ Email Status: Not configured")
+                    print("You need to set up your email account to use email features.")
+            else:
+                print("\n⚠️ Email Status: Not initialized")
+                print("Email functionality is not available.")
+            
+        elif choice == "3":
+            if hasattr(self, 'email_manager') and self.email_manager:
+                if os.path.exists(self.email_manager.config_path):
+                    confirm = input("\n⚠️ Are you sure you want to remove your email account? (y/n): ").strip().lower()
+                    
+                    if confirm == 'y':
+                        try:
+                            os.remove(self.email_manager.config_path)
+                            self.email_setup_complete = False
+                            print("\n✅ Email account removed successfully.")
+                        except Exception as e:
+                            print(f"\n❌ Error removing email account: {e}")
+                    else:
+                        print("\nEmail account removal canceled.")
+                else:
+                    print("\n⚠️ No email account is configured.")
+            else:
+                print("\n⚠️ Email functionality is not available.")
+        
+        else:
+            return
+
+    async def handle_email_operation(self, intent, original_input):
+        """
+        Handle email-related operations.
+        
+        Args:
+            intent: A dictionary containing the email operation and parameters
+            original_input: The original user input
+            
+        Returns:
+            A string response to the user
+        """
+        if not self.email_manager:
+            return "Email functionality is not available. Please make sure you have the required dependencies installed."
+        
+        operation = intent.get('operation')
+        logger.info(f"Handling email operation: {operation}")
+        
+        # Check if email is set up for operations that require it
+        if operation != 'setup_email' and not self.email_setup_complete:
+            return "Your email account is not set up yet. Please use 'set up email' to configure your email account."
+        
+        try:
+            if operation == 'setup_email':
+                print("\nSetting up your email account...")
+                print(f"Email config path: {self.email_manager.config_path}")
+                print(f"Config path exists before setup: {os.path.exists(self.email_manager.config_path)}")
+                
+                email_address = input("Enter your email address: ").strip()
+                password = getpass.getpass("Enter your email password or app password: ")
+                
+                result = self.email_manager.setup_email_account(email_address, password)
+                
+                print(f"Config path exists after setup: {os.path.exists(self.email_manager.config_path)}")
+                self.email_setup_complete = os.path.exists(self.email_manager.config_path)
+                print(f"Email setup complete flag: {self.email_setup_complete}")
+                
+                return result
+                
+            elif operation == 'send_email':
+                to_address = intent.get('to_address')
+                subject = intent.get('subject', '')
+                
+                if not to_address:
+                    to_address = input("Enter recipient's email address: ").strip()
+                    
+                if not subject:
+                    subject = input("Enter email subject: ").strip()
+                
+                print(f"\nComposing email to {to_address} with subject '{subject}'")
+                print("Enter your message (type '.' on a new line to finish):")
+                
+                body_lines = []
+                while True:
+                    line = input()
+                    if line.strip() == '.':
+                        break
+                    body_lines.append(line)
+                
+                body = '\n'.join(body_lines)
+                
+                return self.email_manager.send_email(to_address, subject, body)
+                
+            elif operation == 'list_emails':
+                from_address = intent.get('from_address')
+                
+                # Extract additional parameters from the original input
+                folder = "inbox"
+                limit = 10
+                unread_only = "unread" in original_input.lower()
+                
+                if "sent" in original_input.lower():
+                    folder = "sent"
+                elif "draft" in original_input.lower():
+                    folder = "drafts"
+                
+                # Try to extract a number if specified
+                num_match = re.search(r'(\d+) (?:email|mail|message)', original_input.lower())
+                if num_match:
+                    limit = int(num_match.group(1))
+                
+                emails, summary = self.email_manager.list_emails(
+                    folder=folder,
+                    limit=limit,
+                    unread_only=unread_only,
+                    from_address=from_address
+                )
+                
+                if not emails:
+                    return summary
+                
+                # Format the email list
+                result = f"{summary}\n\n"
+                for i, email in enumerate(emails):
+                    status = "📩 NEW" if not email['is_read'] else "📨"
+                    result += f"{i+1}. {status} From: {email['from']}\n"
+                    result += f"   Subject: {email['subject']}\n"
+                    result += f"   Date: {email['date']}\n"
+                    result += f"   Preview: {email['body']}\n\n"
+                
+                return result
+                
+            elif operation == 'read_email':
+                email_id = intent.get('email_id')
+                
+                # If we don't have an email ID, we need to list emails first
+                if not email_id:
+                    emails, summary = self.email_manager.list_emails(limit=10)
+                    
+                    if not emails:
+                        return "No emails found."
+                    
+                    # Format the email list
+                    result = f"{summary}\n\n"
+                    for i, email in enumerate(emails):
+                        status = "📩 NEW" if not email['is_read'] else "📨"
+                        result += f"{i+1}. {status} From: {email['from']}\n"
+                        result += f"   Subject: {email['subject']}\n"
+                    
+                    email_id = input("\nEnter the number of the email to read: ").strip()
+                
+                # Convert from 1-based (user) to 0-based (internal) indexing
+                try:
+                    email_index = int(email_id) - 1
+                    
+                    # Get the list of emails
+                    emails, _ = self.email_manager.list_emails(limit=20)
+                    
+                    if not emails or email_index < 0 or email_index >= len(emails):
+                        return f"Email #{email_id} not found. Please check the email number."
+                    
+                    # Get the actual email ID from the list
+                    actual_email_id = emails[email_index]['id']
+                    
+                    # Read the email
+                    email_dict, summary = self.email_manager.read_email(actual_email_id)
+                    
+                    if not email_dict:
+                        return summary
+                    
+                    # Format the email content
+                    result = f"Email #{email_id}:\n\n"
+                    result += f"From: {email_dict['from']}\n"
+                    result += f"To: {email_dict['to']}\n"
+                    result += f"Date: {email_dict['date']}\n"
+                    result += f"Subject: {email_dict['subject']}\n\n"
+                    result += email_dict['body']
+                    
+                    return result
+                    
+                except ValueError:
+                    return f"Invalid email number: {email_id}"
+                
+            elif operation == 'reply_to_email':
+                email_id = intent.get('email_id')
+                
+                # If we don't have an email ID, we need to list emails first
+                if not email_id:
+                    return "Please specify which email you want to reply to, e.g., 'reply to email 3'"
+                
+                # Convert from 1-based (user) to 0-based (internal) indexing
+                try:
+                    email_index = int(email_id) - 1
+                    
+                    # Get the list of emails
+                    emails, _ = self.email_manager.list_emails(limit=20)
+                    
+                    if not emails or email_index < 0 or email_index >= len(emails):
+                        return f"Email #{email_id} not found. Please check the email number."
+                    
+                    # Get the actual email ID from the list
+                    actual_email_id = emails[email_index]['id']
+                    
+                    # Read the email to show what we're replying to
+                    email_dict, _ = self.email_manager.read_email(actual_email_id)
+                    
+                    if not email_dict:
+                        return f"Could not read email #{email_id}"
+                    
+                    print(f"\nReplying to email from {email_dict['from']} with subject '{email_dict['subject']}'")
+                    print("Enter your reply (type '.' on a new line to finish):")
+                    
+                    reply_lines = []
+                    while True:
+                        line = input()
+                        if line.strip() == '.':
+                            break
+                        reply_lines.append(line)
+                    
+                    reply_body = '\n'.join(reply_lines)
+                    
+                    # Ask about including the original email
+                    include_original = input("Include original email in reply? (y/n): ").strip().lower() == 'y'
+                    
+                    return self.email_manager.reply_to_email(actual_email_id, reply_body, include_original)
+                    
+                except ValueError:
+                    return f"Invalid email number: {email_id}"
+                
+            elif operation == 'forward_email':
+                email_id = intent.get('email_id')
+                to_address = intent.get('to_address')
+                
+                # If we don't have an email ID or to_address, we need more information
+                if not email_id:
+                    return "Please specify which email you want to forward, e.g., 'forward email 3 to john@example.com'"
+                
+                if not to_address:
+                    to_address = input("Enter the email address to forward to: ").strip()
+                
+                # Convert from 1-based (user) to 0-based (internal) indexing
+                try:
+                    email_index = int(email_id) - 1
+                    
+                    # Get the list of emails
+                    emails, _ = self.email_manager.list_emails(limit=20)
+                    
+                    if not emails or email_index < 0 or email_index >= len(emails):
+                        return f"Email #{email_id} not found. Please check the email number."
+                    
+                    # Get the actual email ID from the list
+                    actual_email_id = emails[email_index]['id']
+                    
+                    # Read the email to show what we're forwarding
+                    email_dict, _ = self.email_manager.read_email(actual_email_id)
+                    
+                    if not email_dict:
+                        return f"Could not read email #{email_id}"
+                    
+                    print(f"\nForwarding email from {email_dict['from']} with subject '{email_dict['subject']}' to {to_address}")
+                    print("Enter an optional message to include (type '.' on a new line to finish):")
+                    
+                    forward_lines = []
+                    while True:
+                        line = input()
+                        if line.strip() == '.':
+                            break
+                        forward_lines.append(line)
+                    
+                    forward_message = '\n'.join(forward_lines)
+                    
+                    return self.email_manager.forward_email(actual_email_id, to_address, forward_message)
+                    
+                except ValueError:
+                    return f"Invalid email number: {email_id}"
+                
+            elif operation == 'delete_email':
+                email_id = intent.get('email_id')
+                
+                # If we don't have an email ID, we need to list emails first
+                if not email_id:
+                    return "Please specify which email you want to delete, e.g., 'delete email 3'"
+                
+                # Convert from 1-based (user) to 0-based (internal) indexing
+                try:
+                    email_index = int(email_id) - 1
+                    
+                    # Get the list of emails
+                    emails, _ = self.email_manager.list_emails(limit=20)
+                    
+                    if not emails or email_index < 0 or email_index >= len(emails):
+                        return f"Email #{email_id} not found. Please check the email number."
+                    
+                    # Get the actual email ID from the list
+                    actual_email_id = emails[email_index]['id']
+                    
+                    # Confirm deletion
+                    email_dict, _ = self.email_manager.read_email(actual_email_id, mark_as_read=False)
+                    
+                    if not email_dict:
+                        return f"Could not read email #{email_id}"
+                    
+                    print(f"\nAre you sure you want to delete this email?")
+                    print(f"From: {email_dict['from']}")
+                    print(f"Subject: {email_dict['subject']}")
+                    
+                    confirm = input("Type 'yes' to confirm: ").strip().lower()
+                    
+                    if confirm == 'yes':
+                        result = self.email_manager.delete_email(actual_email_id)
+                        return result
+                    else:
+                        return "Email deletion cancelled."
+                    
+                except ValueError:
+                    return f"Invalid email number: {email_id}"
+                
+            elif operation == 'ai_compose_email':
+                to_address = intent.get('to_address')
+                
+                if not to_address:
+                    to_address = input("Enter recipient's email address: ").strip()
+                
+                subject = input("Enter email subject: ").strip()
+                
+                print("\nDescribe what you want the AI to write in this email:")
+                instructions = input("Your instructions: ").strip()
+                
+                # Show animated progress indicator
+                print("\n🔄 Generating email content...", flush=True)
+                loading_task = asyncio.create_task(self._animated_loading())
+                
+                try:
+                    # Create a prompt for the AI
+                    prompt = f"""
+                    Please write an email with the following requirements:
+                    
+                    To: {to_address}
+                    Subject: {subject}
+                    
+                    Instructions: {instructions}
+                    
+                    Please format your response as an email body only, without including 'To:', 'Subject:', 
+                    or any other email headers. The email should be professional and well-written.
+                    """
+                    
+                    # Generate the email content using the AI assistant
+                    email_body = await self.assistant.answer_async(prompt)
+                    
+                    # Display the generated email
+                    print("\n📝 Generated Email:")
+                    print("=" * 50)
+                    print(f"To: {to_address}")
+                    print(f"Subject: {subject}")
+                    print("=" * 50)
+                    print(email_body)
+                    print("=" * 50)
+                    
+                    # Ask if the user wants to edit, send, or discard the email
+                    choice = input("\nDo you want to (E)dit, (S)end, or (D)iscard this email? ").strip().lower()
+                    
+                    if choice == 's':
+                        # Send the email
+                        return self.email_manager.send_email(to_address, subject, email_body)
+                    elif choice == 'e':
+                        # Allow the user to edit the email
+                        print("\nEdit the email content (type '.' on a new line to finish):")
+                        print(email_body)
+                        
+                        edited_lines = []
+                        while True:
+                            line = input()
+                            if line.strip() == '.':
+                                break
+                            edited_lines.append(line)
+                        
+                        if edited_lines:
+                            edited_body = '\n'.join(edited_lines)
+                            return self.email_manager.send_email(to_address, subject, edited_body)
+                        else:
+                            return "Email discarded."
+                    else:
+                        return "Email discarded."
+                finally:
+                    # Ensure spinner is properly canceled and cleaned up
+                    loading_task.cancel()
+                    try:
+                        await loading_task
+                    except asyncio.CancelledError:
+                        pass
+                    # Make sure the line is clear
+                    print("\r" + " " * 50 + "\r", end="", flush=True)
+                
+            elif operation == 'generic_email':
+                return """I can help you with email tasks. Try saying:
+- set up email
+- send email to someone@example.com
+- check my emails
+- read email 3
+- reply to email 2
+- forward email 1 to someone@example.com
+- delete email 4
+- ai write an email to someone@example.com"""
+            
+            else:
+                return f"Unknown email operation: {operation}"
+            
+        except Exception as e:
+            logger.error(f"Error executing email operation {operation}: {str(e)}")
+            return f"Error executing email operation: {str(e)}"
+
+    async def compose_email_with_ai(self):
+        """Use AI to compose an email based on user instructions."""
+        print("\n✍️ AI Email Composition")
+        print("------------------------------ \n")
+        
+        # Get recipient
+        to_address = input("To: ").strip()
+        if not to_address:
+            print("Recipient email address is required.")
+            return
+        
+        # Get subject
+        subject = input("Subject: ").strip()
+        if not subject:
+            print("Email subject is required.")
+            return
+        
+        # Get instructions for the AI
+        print("\nDescribe what you want the AI to write in this email:")
+        print("(For example: 'Write a professional email requesting a meeting next week' or")
+        print("'Compose a friendly follow-up to our conversation yesterday about the project')")
+        instructions = input("\nYour instructions: ").strip()
+        
+        if not instructions:
+            print("Instructions are required to generate the email.")
+            return
+        
+        # Show animated progress indicator
+        print("\n🔄 Generating email content...", flush=True)
+        loading_task = asyncio.create_task(self._animated_loading())
+        
+        try:
+            # Create a prompt for the AI
+            prompt = f"""
+            Please write an email with the following requirements:
+            
+            To: {to_address}
+            Subject: {subject}
+            
+            Instructions: {instructions}
+            
+            Please format your response as an email body only, without including 'To:', 'Subject:', 
+            or any other email headers. The email should be professional and well-written.
+            """
+            
+            # Generate the email content using the AI assistant
+            email_body = await self.assistant.answer_async(prompt)
+            
+            # Display the generated email
+            print("\n📝 Generated Email:")
+            print("=" * 50)
+            print(f"To: {to_address}")
+            print(f"Subject: {subject}")
+            print("=" * 50)
+            print(email_body)
+            print("=" * 50)
+            
+            # Ask if the user wants to edit, send, or discard the email
+            choice = input("\nDo you want to (E)dit, (S)end, or (D)iscard this email? ").strip().lower()
+            
+            if choice == 's':
+                # Send the email
+                result = self.email_manager.send_email(to_address, subject, email_body)
+                print(result)
+            elif choice == 'e':
+                # Allow the user to edit the email
+                print("\nEdit the email content (type '.' on a new line to finish):")
+                print(email_body)
+                
+                edited_lines = []
+                while True:
+                    line = input()
+                    if line.strip() == '.':
+                        break
+                    edited_lines.append(line)
+                
+                if edited_lines:
+                    edited_body = '\n'.join(edited_lines)
+                    result = self.email_manager.send_email(to_address, subject, edited_body)
+                    print(result)
+                else:
+                    print("Email discarded.")
+            else:
+                print("Email discarded.")
+            
+        except Exception as e:
+            logger.error(f"Error generating email with AI: {str(e)}")
+            print(f"\n❌ Error generating email: {str(e)}")
+        finally:
+            # Ensure spinner is properly canceled and cleaned up
+            loading_task.cancel()
+            try:
+                await loading_task
+            except asyncio.CancelledError:
+                pass
+            # Make sure the line is clear
+            print("\r" + " " * 50 + "\r", end="", flush=True)

@@ -36,7 +36,7 @@ setup(
         "SpeechRecognition",
         "pillow",
         "opencv-python",
-        "python-dotenv",
+        "python-dotenv>=0.19.2",
         "gtts",
         "pytesseract",
         "requests",

@@ -13,6 +13,7 @@ QuackQuery is a versatile AI assistant with multiple integrations including GitH
 - **Voice Recognition**: Interact with the assistant using speech
 - **Desktop Screenshots**: Capture and analyze your screen
 - **Role-based Personalities**: Switch between different assistant roles for specialized help
+- **Email Integration**: Send, read, reply to, and manage emails with natural language commands
 
 ## Installation
 
@@ -65,3 +66,7 @@ Or create a `.env` file in your working directory:
 ```bash
 quackquery
 ```
+
+## Usage Examples
+
+### Email Management
