@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="QuackQuery",
-    version="0.2.0",
+    version="0.3.0",
     author="Kushagra",
     author_email="radhikayash2@gmail.com",
     description="A versatile AI assistant with multi-model support",
@@ -43,6 +43,8 @@ setup(
         "send2trash",
         "pywin32; platform_system == 'Windows'",
         "pyaudio",
+        "rich",
+        "email-validator>=2.0.0"  # For email validation
     ],
     entry_points={
         "console_scripts": [

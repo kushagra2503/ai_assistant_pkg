@@ -715,4 +715,29 @@ class EmailManager:
             return None
         except Exception as e:
             logger.error(f"Error loading email configuration: {e}")
-            return None 
+            return None
+    
+    def is_configured(self):
+        """
+        Check if email is configured.
+        
+        Returns:
+            bool: True if email is configured, False otherwise
+        """
+        try:
+            # Check if we have the required configuration
+            if not self.email_address or not self.email_password:
+                logger.error("Email credentials not set up")
+                return False
+                
+            if not all([self.email_address, self.email_password, self.smtp_server, 
+                        self.smtp_port, self.imap_server, self.imap_port]):
+                logger.error("Missing required email configuration fields")
+                return False
+                
+            logger.info(f"Email configuration found for {self.email_address}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error checking email configuration: {e}")
+            return False 
