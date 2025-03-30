@@ -82,6 +82,9 @@ class AIAssistantApp:
         self.config_path = config_path or os.path.join(os.path.expanduser("~"), ".aiassistant", "config.json")
         self.config = load_config(self.config_path)
         
+        # Initialize required attributes with default values
+        self.speech_recognizer = None
+        
         # Load or initialize components based on config
         self.initialize_core_components()
         
@@ -142,6 +145,15 @@ class AIAssistantApp:
         self.ocr_processor = OCRProcessor()
         self.github = GitHubIntegration()
         self.github_intent_parser = GitHubIntentParser()
+        
+        # Initialize speech recognizer
+        try:
+            from ai_assistant.utils.speech import SpeechRecognizer
+            self.speech_recognizer = SpeechRecognizer()
+            logger.info("Speech recognition initialized")
+        except Exception as e:
+            logger.warning(f"Speech recognition not available: {str(e)}")
+            self.speech_recognizer = None
         
         # Initialize file explorer and intent parser
         self.file_explorer = FileExplorer()
@@ -2613,7 +2625,7 @@ class AIAssistantApp:
             await self.configure_email()
         # Return to main menu for '6' or any other input
 
-    def change_model(self):
+    async def change_model(self):
         """Change the AI model."""
         model_table = Table(box=box.ROUNDED)
         model_table.add_column("Option", style="cyan")
@@ -2641,7 +2653,7 @@ class AIAssistantApp:
         else:
             console.print("[bold red]❌ Invalid choice.[/bold red]")
 
-    def change_role(self):
+    async def change_role(self):
         """Change the assistant role."""
         from ..core.prompts import ROLE_PROMPTS
         
@@ -2677,7 +2689,7 @@ class AIAssistantApp:
         except ValueError:
             console.print("[bold red]❌ Please enter a number.[/bold red]")
 
-    def update_api_key(self):
+    async def update_api_key(self):
         """Update the API key for the current model."""
         model = self.config.get("model", "Gemini")
         
