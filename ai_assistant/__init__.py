@@ -5,7 +5,7 @@ QuackQuery Package
 A versatile AI assistant package with multi-model support and various integrations.
 """
 
-__version__ = '0.1.1'
+__version__ = '0.4.1'
 
 from .core.assistant import Assistant
 from .core.conversation import ConversationHistory, PersistentConversationHistory
