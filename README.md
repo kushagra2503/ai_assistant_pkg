@@ -26,7 +26,7 @@ pip install quackquery
 ### From Source
 
 ```bash
-git clone https://github.com/kushagra2503/
+git clone https://github.com/kushagra2503/ai_assistant_pkg
 cd ai_assistant
 pip install -e .
 ```
