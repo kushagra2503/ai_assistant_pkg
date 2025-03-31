@@ -21,7 +21,7 @@ class EmailIntentParser:
         self.reply_to_email_pattern = re.compile(r'(?:reply|respond)\s+(?:to\s+)?email\s+(?:number\s+)?(\d+)', re.IGNORECASE)
         self.forward_email_pattern = re.compile(r'(?:forward)\s+email\s+(?:number\s+)?(\d+)(?:\s+to\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?', re.IGNORECASE)
         self.delete_email_pattern = re.compile(r'(?:delete|remove)\s+email\s+(?:number\s+)?(\d+)', re.IGNORECASE)
-        self.ai_compose_email_pattern = re.compile(r'(?:ai|assistant|help me)\s+(?:write|compose|draft|create)\s+(?:an\s+)?(?:email|mail|message)\s+(?:to\s+)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?', re.IGNORECASE)
+        self.ai_compose_email_pattern = re.compile(r'(?:ai|assistant|help me)\s+(?:write|compose|draft|create)\s+(?:an\s+)?(?:email|mail|message)(?:\s+(?:to\s+)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?', re.IGNORECASE)
         
         # Store patterns in a dictionary for easy reference
         self.patterns = {
@@ -53,7 +53,7 @@ class EmailIntentParser:
         
         # Check for AI compose email FIRST (before regular send email)
         # This is important because "ai write email" could also match the send_email pattern
-        ai_compose_pattern = re.compile(r'(?:ai|assistant|help me)\s+(?:write|compose|draft|create)\s+(?:an\s+)?(?:email|mail|message)\s+(?:to\s+)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?', re.IGNORECASE)
+        ai_compose_pattern = re.compile(r'(?:ai|assistant|help me)\s+(?:write|compose|draft|create)\s+(?:an\s+)?(?:email|mail|message)(?:\s+(?:to\s+)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?', re.IGNORECASE)
         match = ai_compose_pattern.search(normalized_input)
         if match:
             to_address = match.group(1) if match.groups() else None

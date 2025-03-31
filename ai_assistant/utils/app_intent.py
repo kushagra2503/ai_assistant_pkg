@@ -65,7 +65,17 @@ class AppIntentParser:
         # Check for app-related content
         app_keywords = ["app", "application", "open", "launch", "start", "run", "program"]
         
-        has_app_keyword = any(keyword in text for keyword in app_keywords)
+        # Skip if it's a WhatsApp related command to prevent conflicts with WhatsApp intent parser
+        if "whatsapp" in text or "whats app" in text:
+            return None
+            
+        # Check for app keywords that are standalone words, not part of other words
+        has_app_keyword = False
+        for keyword in app_keywords:
+            # Look for the keyword as a whole word, not part of another word
+            if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
+                has_app_keyword = True
+                break
         
         if not has_app_keyword:
             return None

@@ -20,6 +20,8 @@ from ..utils.app_intent import AppIntentParser
 from ..integrations.app_launcher import AppLauncher
 from ..integrations.email_manager import EmailManager
 from ..utils.email_intent import EmailIntentParser
+from ai_assistant.integrations.whatsapp_manager import WhatsAppManager
+from ai_assistant.utils.whatsapp_intent import WhatsAppIntentParser
 
 # Rich UI components
 from rich.console import Console
@@ -57,6 +59,7 @@ class AIAssistantApp:
         file_intent_parser (FileIntentParser): File intent parser
         app_intent_parser (AppIntentParser): App intent parser
         app_launcher (AppLauncher): App launcher for application launching
+        whatsapp_manager (WhatsAppManager): WhatsApp integration
     """
 
     def __init__(self, config_path=None, debug=False):
@@ -84,9 +87,14 @@ class AIAssistantApp:
         
         # Initialize required attributes with default values
         self.speech_recognizer = None
+        self.whatsapp_manager = None
         
         # Load or initialize components based on config
         self.initialize_core_components()
+        
+        # Set WhatsApp auto-login to False by default, regardless of stored config
+        # User can explicitly enable this later via /whatsapp setup if desired
+        self.whatsapp_auto_login = False
         
         # Show a welcome message if debug is enabled
         if self.debug:
@@ -177,6 +185,9 @@ class AIAssistantApp:
             self.email_manager = None
             self.email_setup_complete = False
         
+        # Initialize WhatsApp manager if configured
+        self.whatsapp_manager = WhatsAppManager(self.config_path)
+        
         self.initialize_assistant()
         self.register_functions()
 
@@ -224,7 +235,8 @@ class AIAssistantApp:
             "/document": self.document_command,
             "/ocr": self.ocr_command,
             "/github": self.github_command,
-            "/email": self.email_command
+            "/email": self.email_command,
+            "/whatsapp": self.whatsapp_command
         }
 
     async def process_command(self, text):
@@ -274,6 +286,11 @@ class AIAssistantApp:
             await self.email_command(args)
             return True
             
+        # WhatsApp command
+        elif command == "/whatsapp":
+            await self.whatsapp_command(args)
+            return True
+            
         # Unknown command
         else:
             console.print(Panel(
@@ -321,14 +338,14 @@ class AIAssistantApp:
                 console.print(Panel(
                     "The document command helps you work with documents and files.\n\n"
                     "[bold cyan]Subcommands:[/bold cyan]\n"
-                    "• [bold]/document summarize [file_path][/bold cyan] - Generate a summary of a document\n"
-                    "• [bold]/document generate[/bold cyan] - Create a new document using AI\n"
-                    "• [bold]/document analyze [file_path][/bold cyan] - Analyze the content of a document\n\n"
+                    "• [bold cyan]summarize [file_path][/bold cyan] - Generate a summary of a document\n"
+                    "• [bold cyan]generate[/bold cyan] - Create a new document using AI\n"
+                    "• [bold cyan]analyze [file_path][/bold cyan] - Analyze the content of a document\n\n"
                     "[bold cyan]Examples:[/bold cyan]\n"
                     "• [bold]/document summarize report.pdf[/bold cyan] - Summarizes the PDF file\n"
                     "• [bold]/document generate[/bold cyan] - Starts the document generation wizard\n"
                     "• [bold]/document analyze data.csv[/bold cyan] - Analyzes the CSV file",
-                    title="[bold]Document Command Help[/bold]",
+                    title="[bold]Document Commands Help[/bold]",
                     border_style="blue",
                     box=box.ROUNDED
                 ))
@@ -353,10 +370,10 @@ class AIAssistantApp:
                 console.print(Panel(
                     "The email command helps you compose, read, and manage emails.\n\n"
                     "[bold cyan]Subcommands:[/bold cyan]\n"
-                    "• [bold]/email compose [recipient][/bold cyan] - Compose a new email\n"
-                    "• [bold]/email ai [recipient][/bold cyan] - Let AI help you write an email\n"
-                    "• [bold]/email read[/bold cyan] - Read your emails\n"
-                    "• [bold]/email setup[/bold cyan] - Configure your email settings\n\n"
+                    "• [bold cyan]compose [recipient][/bold cyan] - Compose a new email\n"
+                    "• [bold cyan]ai [recipient][/bold cyan] - Let AI help you write an email\n"
+                    "• [bold cyan]read[/bold cyan] - Read your emails\n"
+                    "• [bold cyan]setup[/bold cyan] - Configure your email settings\n\n"
                     "[bold cyan]Examples:[/bold cyan]\n"
                     "• [bold]/email compose john@example.com[/bold cyan] - Start composing an email\n"
                     "• [bold]/email ai boss@company.com[/bold cyan] - Use AI to draft an email\n"
@@ -371,11 +388,11 @@ class AIAssistantApp:
                 console.print(Panel(
                     "The GitHub command allows you to interact with GitHub repositories.\n\n"
                     "[bold cyan]Subcommands:[/bold cyan]\n"
-                    "• [bold]/github setup[/bold cyan] - Configure GitHub integration\n"
-                    "• [bold]/github status[/bold cyan] - Check GitHub integration status\n"
-                    "• [bold]/github repos[/bold cyan] - List your GitHub repositories\n"
-                    "• [bold]/github issues [owner/repo][/bold cyan] - List issues for a repository\n"
-                    "• [bold]/github create[/bold cyan] - Create a new issue or pull request\n\n"
+                    "• [bold cyan]setup[/bold cyan] - Configure GitHub integration\n"
+                    "• [bold cyan]status[/bold cyan] - Check GitHub integration status\n"
+                    "• [bold cyan]repos[/bold cyan] - List your GitHub repositories\n"
+                    "• [bold cyan]issues [owner/repo][/bold cyan] - List issues for a repository\n"
+                    "• [bold cyan]create[/bold cyan] - Create a new issue or pull request\n\n"
                     "[bold cyan]Examples:[/bold cyan]\n"
                     "• [bold]/github repos[/bold cyan] - Shows your repositories\n"
                     "• [bold]/github issues username/repo[/bold cyan] - Lists issues in that repo\n"
@@ -389,9 +406,9 @@ class AIAssistantApp:
                 console.print(Panel(
                     "The config command allows you to configure assistant settings.\n\n"
                     "[bold cyan]Subcommands:[/bold cyan]\n"
-                    "• [bold]/config model[/bold cyan] - Change the AI model\n"
-                    "• [bold]/config role[/bold cyan] - Change the assistant's role\n"
-                    "• [bold]/config show[/bold cyan] - Show current configuration\n\n"
+                    "• [bold cyan]model[/bold cyan] - Change the AI model\n"
+                    "• [bold cyan]role[/bold cyan] - Change the assistant's role\n"
+                    "• [bold cyan]show[/bold cyan] - Show current configuration\n\n"
                     "[bold cyan]Examples:[/bold cyan]\n"
                     "• [bold]/config model[/bold cyan] - Change the AI model\n"
                     "• [bold]/config role[/bold cyan] - Set a new role for the assistant\n"
@@ -414,6 +431,25 @@ class AIAssistantApp:
                     "• \"Stop listening\" (to exit voice mode)",
                     title="[bold]Voice Command Help[/bold]",
                     border_style="blue", 
+                    box=box.ROUNDED
+                ))
+                
+            elif command == "whatsapp":
+                console.print(Panel(
+                    "The WhatsApp command allows you to interact with WhatsApp.\n\n"
+                    "[bold cyan]Subcommands:[/bold cyan]\n"
+                    "• [bold cyan]setup[/bold cyan] - Configure WhatsApp integration\n"
+                    "• [bold cyan]connect[/bold cyan] - Connect to WhatsApp Web\n"
+                    "• [bold cyan]disconnect[/bold cyan] - Disconnect from WhatsApp Web\n"
+                    "• [bold cyan]send[/bold cyan] - Send a WhatsApp message\n"
+                    "• [bold cyan]contacts[/bold cyan] - List recent contacts\n\n"
+                    "[bold cyan]Examples:[/bold cyan]\n"
+                    "• [bold]/whatsapp setup[/bold cyan] - Configure WhatsApp\n"
+                    "• [bold]/whatsapp connect[/bold cyan] - Connect to WhatsApp Web\n"
+                    "• [bold]/whatsapp send +1234567890 Hello, how are you?[/bold cyan] - Send a message to a contact\n"
+                    "• [bold]/whatsapp contacts[/bold cyan] - List recent contacts",
+                    title="[bold]WhatsApp Command Help[/bold]",
+                    border_style="blue",
                     box=box.ROUNDED
                 ))
                 
@@ -482,6 +518,12 @@ class AIAssistantApp:
                 "/github [repos/issues/create/setup]", 
                 "Interact with GitHub repositories",
                 "/github repos\n/github issues user/repo"
+            )
+            
+            main_help.add_row(
+                "/whatsapp [action]", 
+                "Interact with WhatsApp (setup, connect, send, contacts)",
+                "/whatsapp setup\n/whatsapp send +1234567890 Hello"
             )
             
             main_help.add_row(
@@ -674,17 +716,8 @@ class AIAssistantApp:
                 file_path = Prompt.ask("Enter file path", default=default_filename)
                 
                 try:
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[bold blue]Saving document...[/bold blue]"),
-                        console=console,
-                        transient=True
-                    ) as progress:
-                        task = progress.add_task("[green]Writing file...", total=None)
-                        
-                        with open(file_path, 'w', encoding='utf-8') as f:
-                            f.write(generated_content)
-                            
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(generated_content)
                     self.display_success(f"Document saved to {file_path}")
                 except Exception as e:
                     self.display_error(f"Error saving document: {str(e)}")
@@ -1324,203 +1357,146 @@ class AIAssistantApp:
         else:
             self.display_error(f"Unsupported GitHub operation: {operation}")
             
-    async def run(self):
-        """Run the QuackQuery application."""
-        console.clear()
-        console.print(Panel.fit(
-            "🦆 [bold cyan]QuackQuery AI Assistant[/bold cyan] [green]initialized[/green]",
-            box=box.ROUNDED,
-            border_style="cyan",
-            title="Welcome",
-            subtitle="v1.0"
-        ))
-        
-        while True:
-            # Display menu in a styled panel
-            menu_table = Table(show_header=False, box=box.SIMPLE)
-            menu_table.add_column("Option", style="cyan")
-            menu_table.add_column("Description")
-            menu_table.add_row("S", "Speak to the assistant")
-            menu_table.add_row("T", "Type a question")
-            menu_table.add_row("C", "Configure settings")
-            menu_table.add_row("Q", "Quit")
-            
-            console.print(Panel(
-                menu_table,
-                title="[bold]Main Menu[/bold]",
-                border_style="blue",
-                box=box.ROUNDED
-            ))
-            
-            # Use Rich prompt for input
-            user_input = Prompt.ask("\nEnter your choice", choices=["s", "t", "c", "q"], default="t").lower()
-            
-            if user_input == 's':
-                await self.handle_speech_input()
-                console.print("\n[green]✅ Ready for next command...[/green]")
-            elif user_input == 't':
-                await self.handle_text_input()
-                console.print("\n[green]✅ Ready for next command...[/green]")
-            elif user_input == 'c':
-                await self.configure()
-                console.print("\n[green]✅ Settings updated. Ready for next command...[/green]")
-            elif user_input == 'q':
-                console.print("\n[yellow]Exiting assistant. Goodbye! 👋[/yellow]")
-                break
-            else:
-                console.print("\n[bold red]❌ Invalid input. Please choose S, T, C, or Q.[/bold red]")
-
-    async def handle_speech_input(self):
-        """Handle speech input from user."""
-        if not self.speech_recognizer:
-            console.print("[bold red]❌ Speech recognition is not available. Please make sure you have the required dependencies installed.[/bold red]")
-            return
-
-        # Create a panel with instructions
-        console.print(Panel(
-            "[bold]🎤 Speak now...[/bold]\n[dim]I'm listening. Say 'stop' or press Ctrl+C when finished.[/dim]",
-            title="[bold]Voice Input Mode[/bold]",
-            border_style="blue",
-            box=box.ROUNDED
-        ))
+    async def handle_text_input(self):
+        """Handle text input from the user."""
+        from ai_assistant.utils.github_intent import GitHubIntentParser
+        from ai_assistant.utils.file_intent import FileIntentParser
+        from ai_assistant.utils.app_intent import AppIntentParser
+        from ai_assistant.utils.email_intent import EmailIntentParser
+        from ai_assistant.utils.whatsapp_intent import WhatsAppIntentParser
         
         try:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[bold blue]Listening...[/bold blue]"),
-                console=console,
-                transient=True
-            ) as progress:
-                task = progress.add_task("[green]Recording...", total=None)
-                speech_text = self.speech_recognizer.listen()
+            # Get user input with Rich Prompt
+            text = Prompt.ask("\n[bold cyan]You[/bold cyan]")
+            
+            # Skip empty input
+            if not text:
+                return
+
+            # Check for exit command
+            if text.lower() in ["exit", "quit", "/exit", "/quit"]:
+                console.print("[bold green]Goodbye![/bold green]")
+                raise KeyboardInterrupt()
                 
-            if not speech_text:
-                console.print("[yellow]⚠️ I didn't catch that. Please try again.[/yellow]")
-                return
+            # Process special commands
+            if text.startswith("/"):
+                if await self.process_command(text):
+                    return
+                    
+            # Initialize intent parsers if not already done
+            github_intent_parser = GitHubIntentParser()
+            file_intent_parser = FileIntentParser()
+            app_intent_parser = AppIntentParser()
+            email_intent_parser = EmailIntentParser()
+            whatsapp_intent_parser = WhatsAppIntentParser()
             
-            console.print(Panel(
-                f"[cyan italic]\"{speech_text}\"[/cyan italic]",
-                title="[bold]You said[/bold]",
-                border_style="green",
-                box=box.ROUNDED
-            ))
-            
-            # Process the recognized text
-            if speech_text.lower() in ["quit", "exit", "stop", "goodbye"]:
-                console.print("[yellow]Voice input mode ended by command.[/yellow]")
-                return
-            
-            # Check if this is a command
-            if speech_text.startswith("/"):
-                await self.process_command(speech_text)
-                return
-                
-            # Check for GitHub intent
-            github_intent = self.github_intent_parser.parse_intent(speech_text)
+            # Check for GitHub operations
+            github_intent = github_intent_parser.parse_intent(text)
             if github_intent:
                 result = await self.handle_github_operation(github_intent)
                 self._format_and_display_response(result)
                 return
+
+            # Check for WhatsApp operations
+            whatsapp_intent = whatsapp_intent_parser.parse_intent(text)
+            logger.info(f"WhatsApp intent detection result: {whatsapp_intent}")
+            
+            if whatsapp_intent:
+                result = await self.handle_whatsapp_operation(whatsapp_intent)
+                # Format the response to make it visible
+                self._format_and_display_response(result)
+                return
                 
-            # Check for File intent
-            file_intent = self.file_intent_parser.parse_intent(speech_text)
+            # If the shared text appears to be a WhatsApp-related request with a phone number
+            if ("message" in text.lower() or "whatsapp" in text.lower()) and re.search(r'[+=]?\d{10,}', text):
+                logger.info("Detected potential WhatsApp message to phone number")
+                # Try to extract recipient (phone number) and message content
+                phone_match = re.search(r'(?:to\s+)?([+=]?\d{10,})', text)
+                if phone_match:
+                    recipient = phone_match.group(1)
+                    # Look for content after "about" or similar terms
+                    content_match = re.search(r'(?:about|regarding|on|for)\s+(.*?)(?:\.|$)', text, re.IGNORECASE)
+                    instruction = text  # Use full text as instruction if no specific content found
+                    
+                    logger.info(f"Creating manual WhatsApp intent for phone: {recipient}")
+                    # Create a WhatsApp intent
+                    whatsapp_intent = {
+                        'action': 'ai_compose_whatsapp',
+                        'recipient': recipient.strip(),
+                        'instruction': instruction
+                    }
+                    
+                    result = await self.handle_whatsapp_operation(whatsapp_intent)
+                    self._format_and_display_response(result)
+                    return
+                
+            # Direct pattern match for AI write message with phone number
+            ai_whatsapp_phone_match = re.search(r'(?:ai|assistant|help)\s+(?:write|compose|draft|create)\s+(?:a\s+)?(?:message|msg)(?:\s+to\s+|\s+for\s+)?([+=]?\d{10,})', text.lower())
+            if ai_whatsapp_phone_match:
+                logger.info("Direct pattern match for AI WhatsApp message to phone")
+                recipient = ai_whatsapp_phone_match.group(1)
+                
+                # Create a WhatsApp intent
+                whatsapp_intent = {
+                    'action': 'ai_compose_whatsapp',
+                    'recipient': recipient.strip(),
+                    'instruction': text
+                }
+                
+                result = await self.handle_whatsapp_operation(whatsapp_intent)
+                self._format_and_display_response(result)
+                return
+            
+            # Check for Email operations
+            email_intent = email_intent_parser.parse_intent(text)
+            if email_intent:
+                result = await self.handle_email_operation(email_intent, prompt=text)
+                self._format_and_display_response(result)
+                return
+                
+            # Check for File operations
+            file_intent = file_intent_parser.parse_intent(text)
             if file_intent:
                 result = await self.handle_file_operation(file_intent)
                 self._format_and_display_response(result)
                 return
                 
-            # Check for App intent
-            app_intent = self.app_intent_parser.parse_intent(speech_text)
+            # Check for App operations
+            app_intent = app_intent_parser.parse_intent(text)
             if app_intent:
                 result = await self.handle_app_operation(app_intent)
                 self._format_and_display_response(result)
                 return
                 
-            # Ask about screenshot inclusion
-            include_screenshot = Confirm.ask("Include a screenshot for context?", default=False)
+            # Process as a regular question with Rich UI feedback
+            include_screenshot = Confirm.ask("Include screenshot context?", default=False)
             
-            # Process the command/question
+            # Use Rich progress bar instead of animated loading
             with Progress(
                 SpinnerColumn(),
-                TextColumn("[bold blue]Processing your request...[/bold blue]"),
-                BarColumn(),
-                TimeElapsedColumn(),
+                TextColumn("[bold blue]Processing...[/bold blue]"),
                 console=console,
                 transient=True
-            ) as processing_progress:
-                process_task = processing_progress.add_task("[green]Thinking...", total=None)
-                screenshot_encoded = self.desktop_screenshot.capture() if include_screenshot else None
-                response = await self.assistant.answer_async(speech_text, screenshot_encoded)
-            
-            # Format and display the response
-            self._format_and_display_response(response)
-            
-        except KeyboardInterrupt:
-            console.print("[yellow]Voice input mode ended.[/yellow]")
-        except Exception as e:
-            console.print(f"[bold red]❌ Error during speech recognition: {str(e)}[/bold red]")
-            logger.error(f"Speech input error: {e}")
+            ) as progress:
+                task = progress.add_task("[green]Thinking...", total=None)
+                
+                try:
+                    screenshot_encoded = self.desktop_screenshot.capture() if include_screenshot else None
+                    response = await self.assistant.answer_async(text, screenshot_encoded)
+                    
+                    # Display response with syntax highlighting for code blocks
+                    self._format_and_display_response(response)
+                    
+                    return response
+                    
+                except Exception as e:
+                    logger.error(f"Question processing error: {e}")
+                    console.print(f"\n[bold red]❌ Error processing question: {e}[/bold red]")
+                    return
 
-    async def handle_text_input(self):
-        """Handle text input from the user."""
-        prompt = Prompt.ask("\nEnter your question or command")
-        
-        if not prompt:
-            console.print("\n[bold orange]⚠️ No input provided. Please try again.[/bold orange]")
-            return
-        
-        # Check if this is a command
-        if prompt.startswith("/"):
-            command_processed = await self.process_command(prompt)
-            if command_processed:
-                return
-        
-        # Direct check for AI email composition
-        ai_email_match = re.search(r'(?:ai|assistant|help me)\s+(?:write|compose|draft|create)\s+(?:an\s+)?(?:email|mail|message)', prompt.lower())
-        if ai_email_match:
-            logger.info("Detected AI email composition request directly")
-            # Extract email address if present
-            email_match = re.search(r'to\s+([a-zA-Z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,})', prompt.lower())
-            to_address = email_match.group(1) if email_match else None
-            
-            # Create an intent dictionary
-            ai_email_intent = {
-                'operation': 'ai_compose_email',
-                'to_address': to_address
-            }
-            
-            # Handle the AI email composition
-            result = await self.handle_email_operation(ai_email_intent, prompt)
-            console.print(Panel(f"[cyan]🤖 {result}[/cyan]", box=box.ROUNDED, border_style="green", title="Email Operation"))
-            return
-        
-        # Other intent checks remain the same...
-        
-        # Process as a regular question with Rich UI feedback
-        include_screenshot = Confirm.ask("Include screenshot context?", default=False)
-        
-        # Use Rich progress bar instead of animated loading
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]Processing...[/bold blue]"),
-            console=console,
-            transient=True
-        ) as progress:
-            task = progress.add_task("[green]Thinking...", total=None)
-            
-            try:
-                screenshot_encoded = self.desktop_screenshot.capture() if include_screenshot else None
-                response = await self.assistant.answer_async(prompt, screenshot_encoded)
-                
-                # Display response with syntax highlighting for code blocks
-                self._format_and_display_response(response)
-                
-                return response
-                
-            except Exception as e:
-                logger.error(f"Question processing error: {e}")
-                console.print(f"\n[bold red]❌ Error processing question: {e}[/bold red]")
-                return
+        except Exception as e:
+            console.print(f"\n[bold red]❌ Error processing input: {str(e)}[/bold red]")
+            logger.exception("Error processing input:")
 
     def _format_and_display_response(self, response):
         """Format and display AI response with Rich UI enhancements."""
@@ -1622,7 +1598,19 @@ class AIAssistantApp:
             box=box.ROUNDED
         ))
         
-        # Ask the user if they want AI analysis of the extracted text
+        # Ask if user wants to save the extracted text
+        if Confirm.ask("Would you like to save this text to a file?", default=False):
+            default_filename = f"{os.path.basename(image_path).split('.')[0]}.txt"
+            file_path = Prompt.ask("Enter file path", default=default_filename)
+            
+            try:
+                with open(file_path, 'w') as f:
+                    f.write(extracted_text)
+                self.display_success(f"Text saved to {file_path}")
+            except Exception as e:
+                self.display_error(f"Error saving file: {str(e)}")
+                
+        # Ask if user wants AI analysis of the extracted text
         if Confirm.ask("Would you like AI analysis of this text?", default=True):
             with Progress(
                 SpinnerColumn(),
@@ -1644,17 +1632,6 @@ class AIAssistantApp:
                 border_style="blue",
                 box=box.ROUNDED
             ))
-            
-        # Ask if the user wants to save the extracted text
-        if Confirm.ask("Would you like to save the extracted text to a file?", default=False):
-            file_path = Prompt.ask("Enter file path to save the text", default="ocr_output.txt")
-            
-            try:
-                with open(file_path, 'w') as f:
-                    f.write(extracted_text)
-                self.display_success(f"Text saved to {file_path}")
-            except Exception as e:
-                self.display_error(f"Error saving file: {str(e)}")
 
     async def web_command(self, args):
         """
@@ -1781,7 +1758,7 @@ class AIAssistantApp:
                 # If still not configured after check
                 if not getattr(self, 'email_setup_complete', False):
                     self.display_error("Email is not set up. Please run '/email setup' first.")
-                    return True
+                    return
             
             if subcommand == "setup":
                 await self.email_setup()
@@ -1820,12 +1797,13 @@ class AIAssistantApp:
             logger.exception("Email command error")
             return True
 
-    async def email_ai_write(self, to_address=None):
+    async def email_ai_write(self, to_address=None, prompt=None):
         """
         Use AI to write an email.
         
         Args:
             to_address (str, optional): Optional recipient email address
+            prompt (str, optional): The original prompt text for context
         """
         try:
             # First make sure email is configured
@@ -1883,15 +1861,19 @@ class AIAssistantApp:
                 task = progress.add_task("[green]Thinking...", total=None)
                 
                 prompt = f"Write an email to {to_address} with the subject '{subject}'. {instructions}"
-                generated_email = await self.assistant.answer_async(prompt)
+                if prompt:
+                    generated_email = await self.assistant.answer_async(prompt)
+                else:
+                    generated_email = await self.assistant.answer_async(f"Write an email to {to_address} with the subject '{subject}'.")
                 
-            # Extract subject and body from the generated email
-            # This is a simple implementation; might need better parsing
-            generated_body = generated_email
+                # Extract subject and body from the generated email
+                # This is a simple implementation; might need better parsing
+                generated_body = generated_email
             
             # Preview the email with improved formatting
             console.print(Panel(
-                Markdown(generated_body),
+                f"[bold]Subject:[/bold] {subject}\n\n"
+                f"[bold]Body:[/bold]\n{generated_body}",
                 title=f"[bold]Generated Email: {subject}[/bold]",
                 border_style="green",
                 box=box.ROUNDED,
@@ -1915,25 +1897,13 @@ class AIAssistantApp:
             choice = Prompt.ask("[bold]Select an option[/bold]", choices=list(choices.keys()), default="2")
             
             if choice == "1":  # Send as is
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[bold blue]Sending email...[/bold blue]"),
-                    console=console,
-                    transient=True
-                ) as progress:
-                    task = progress.add_task("[green]Connecting to SMTP server...", total=None)
-                    
-                    # Send the email
-                    try:
-                        result = self.email_manager.send_email(to_address, subject, generated_body)
-                        if result and "success" in result.lower():
-                            self.display_success("Email sent successfully!")
-                        else:
-                            self.display_error(f"Failed to send email: {result}")
-                    except Exception as e:
-                        self.display_error(f"Failed to send email: {str(e)}")
-                        logger.exception("Unexpected error during email sending:")
-            
+                console.print(f"[bold cyan]Sending email to {to_address}...[/bold cyan]")
+                success = await asyncio.to_thread(self.email_manager.send_email, to_address, subject, generated_body)
+                
+                if success:
+                    self.display_success("Email sent successfully!")
+                else:
+                    self.display_error(f"Failed to send email: {success}")
             elif choice == "2":  # Edit before sending
                 # Create a temporary file for editing in Notepad
                 with tempfile.NamedTemporaryFile(mode='w+', suffix='.txt', delete=False) as temp_file:
@@ -1960,7 +1930,8 @@ class AIAssistantApp:
                     
                     # Preview the edited email
                     console.print(Panel(
-                        Markdown(edited_body),
+                        f"[bold]Subject:[/bold] {subject}\n\n"
+                        f"[bold]Body:[/bold]\n{edited_body}",
                         title=f"[bold]Edited Email: {subject}[/bold]",
                         border_style="green",
                         box=box.ROUNDED,
@@ -1969,22 +1940,13 @@ class AIAssistantApp:
                     
                     # Confirm sending
                     if Confirm.ask("Send this edited email?"):
-                        with Progress(
-                            SpinnerColumn(),
-                            TextColumn("[bold blue]Sending email...[/bold blue]"),
-                            console=console,
-                            transient=True
-                        ) as progress:
-                            task = progress.add_task("[green]Connecting to SMTP server...", total=None)
-                            
-                            try:
-                                result = self.email_manager.send_email(to_address, subject, edited_body)
-                                if result and "success" in result.lower():
-                                    self.display_success("Email sent successfully!")
-                                else:
-                                    self.display_error(f"Failed to send email: {result}")
-                            except Exception as e:
-                                self.display_error(f"Failed to send email: {str(e)}")
+                        console.print(f"[bold cyan]Sending email to {to_address}...[/bold cyan]")
+                        success = await asyncio.to_thread(self.email_manager.send_email, to_address, subject, edited_body)
+                        
+                        if success:
+                            self.display_success("Email sent successfully!")
+                        else:
+                            self.display_error(f"Failed to send email: {success}")
                     else:
                         self.display_warning("Email sending canceled")
                 except Exception as e:
@@ -1994,7 +1956,7 @@ class AIAssistantApp:
             elif choice == "3":  # Regenerate
                 console.print("[bold cyan]New instructions for regenerating the email:[/bold cyan]")
                 new_instructions = Prompt.ask("[bold]New instructions[/bold]")
-                await self.email_ai_write(to_address)  # Restart the process
+                await self.email_ai_write(to_address, prompt=new_instructions)  # Restart the process
                 
             elif choice == "4":  # Save draft
                 self.display_warning("Save as draft feature is not yet implemented")
@@ -2041,21 +2003,12 @@ class AIAssistantApp:
             ))
             
             # Create a table for the emails
-            table = Table(
-                title="Recent Emails",
-                box=box.ROUNDED,
-                expand=True,
-                show_lines=True,
-                title_style="bold cyan"
-            )
-            
-            # Define table columns
+            table = Table(title="Recent Emails", box=box.ROUNDED, border_style="blue")
             table.add_column("#", style="dim", width=4)
             table.add_column("From", style="bold", width=30, overflow="fold")
             table.add_column("Subject", style="italic green", width=40, overflow="fold")
             table.add_column("Date", style="blue", width=25)
             
-            # Add emails to the table
             for i, email_data in enumerate(emails, 1):
                 from_addr = email_data['from']
                 subject = email_data['subject'] or "(No Subject)"
@@ -2112,7 +2065,7 @@ class AIAssistantApp:
                     
                     # Extract the email address from the From field if needed
                     import re
-                    email_pattern = r'[\w\.-]+@[\w\.-]+'
+                    email_pattern = r'[\w\.-]+@[\w\.-]+\.[A-Z|a-z]{2,}'
                     email_matches = re.findall(email_pattern, reply_to)
                     if email_matches:
                         reply_to = email_matches[0]
@@ -2602,7 +2555,8 @@ class AIAssistantApp:
         config_table.add_row("3", "Update API key")
         config_table.add_row("4", "Configure GitHub integration")
         config_table.add_row("5", "Configure email integration")
-        config_table.add_row("6", "Return to main menu")
+        config_table.add_row("6", "Configure WhatsApp integration")
+        config_table.add_row("7", "Return to main menu")
         
         console.print(Panel(
             config_table,
@@ -2611,7 +2565,7 @@ class AIAssistantApp:
             box=box.ROUNDED
         ))
         
-        choice = Prompt.ask("Enter your choice", choices=["1", "2", "3", "4", "5", "6"], default="6")
+        choice = Prompt.ask("Enter your choice", choices=["1", "2", "3", "4", "5", "6", "7"], default="7")
         
         if choice == "1":
             await self.change_model()
@@ -2623,7 +2577,9 @@ class AIAssistantApp:
             await self.configure_github()
         elif choice == "5":
             await self.configure_email()
-        # Return to main menu for '6' or any other input
+        elif choice == "6":
+            await self.configure_whatsapp()
+        # Return to main menu for '7' or any other input
 
     async def change_model(self):
         """Change the AI model."""
@@ -2841,422 +2797,498 @@ class AIAssistantApp:
         
         # Return to config menu for '4' or any other input
 
-    async def check_email_config(self):
-        """Check email configuration status and initialize if needed"""
-        try:
-            if not hasattr(self, 'email_manager') or self.email_manager is None:
-                self.display_error("Email manager not initialized")
-                return
+    async def configure_whatsapp(self):
+        """Configure WhatsApp integration settings."""
+        from rich.prompt import Confirm
+        
+        console.print(Panel("[bold cyan]⚙️ WhatsApp Configuration[/bold cyan]", box=box.ROUNDED, border_style="cyan"))
+        
+        # Check if WhatsApp is already configured
+        whatsapp_config = self.whatsapp_manager.config if self.whatsapp_manager else {}
+        
+        if whatsapp_config:
+            # Show current configuration
+            config_table = Table(show_header=False, box=box.SIMPLE)
+            config_table.add_column("Setting", style="cyan")
+            config_table.add_column("Value")
             
-            # Try to load config directly from email_manager
-            if hasattr(self.email_manager, 'is_configured') and self.email_manager.is_configured():
-                self.email_setup_complete = True
-                self.display_success(f"Email configured for: {self.email_manager.email_address}")
-                return
-                
-            # Check if config file exists
-            config_path = getattr(self.email_manager, 'config_path', None)
-            if not config_path or not os.path.exists(config_path):
-                self.display_error("Email configuration not found")
-                return
-                
-            # Try to load the config
-            try:
-                # Try method in email_manager class first
-                if hasattr(self.email_manager, 'load_email_config'):
-                    config = self.email_manager.load_email_config()
-                else:
-                    # Fallback to loading directly
-                    with open(config_path, 'r') as f:
-                        config = json.load(f)
-                    
-                if not config:
-                    self.display_error("Email configuration is empty or invalid")
-                    return
-                    
-                # Check for required fields
-                required_fields = ['email_address', 'email_password', 'smtp_server', 'smtp_port', 'imap_server', 'imap_port']
-                missing_fields = [field for field in required_fields if field not in config]
-                
-                if missing_fields:
-                    self.display_error(f"Email config is missing fields: {', '.join(missing_fields)}")
-                else:
-                    # All required fields present
-                    if hasattr(self.email_manager, 'connect'):
-                        # Try to connect to validate configuration
-                        connection_result = self.email_manager.connect()
-                        if connection_result:
-                            self.email_setup_complete = True
-                            self.display_success(f"Connected to email: {config['email_address']} via {config['smtp_server']}")
-                        else:
-                            self.display_error("Failed to connect with the saved email configuration")
-                    else:
-                        # Just mark as complete without testing connection
-                        self.email_setup_complete = True
-                        self.display_success(f"Email config loaded: {config['email_address']} via {config['smtp_server']}")
-                    
-            except json.JSONDecodeError:
-                self.display_error("Email config file is corrupt or empty")
-            except Exception as e:
-                self.display_error(f"Error loading email config: {str(e)}")
-                logger.exception("Error loading email configuration")
-        except Exception as e:
-            self.display_error(f"Error checking email config: {str(e)}")
-            logger.exception("Error checking email configuration")
-
-    async def email_setup(self):
-        """
-        Set up email configuration with user-provided details.
-        """
-        console.print(Panel(
-            "Email Configuration\nThis will set up your email for sending and receiving messages.\nYou'll need your email address and password/app password.",
-            title="[bold]Email Setup[/bold]",
-            border_style="cyan",
-            box=box.ROUNDED
-        ))
-        
-        # Get email configuration details
-        email_address = Prompt.ask("[bold cyan]Email address[/bold cyan]")
-        
-        # Auto-detect email provider and pre-fill server information
-        provider_settings = self._detect_email_provider(email_address)
-        
-        # Show provider detection result
-        if provider_settings:
-            self.display_success(f"Detected {provider_settings['name']} account! Server settings will be configured automatically.")
-        else:
-            self.display_warning("Could not detect email provider. You'll need to enter server details manually.")
-        
-        # Get password
-        email_password = Prompt.ask("[bold cyan]Email password/app password[/bold cyan]", password=True)
-        
-        # Set SMTP and IMAP details based on detected provider or ask user
-        if provider_settings:
-            smtp_server = provider_settings['smtp_server']
-            smtp_port = provider_settings['smtp_port']
-            imap_server = provider_settings['imap_server']
-            imap_port = provider_settings['imap_port']
-            provider = provider_settings.get('name', '').lower().replace(' ', '_')
+            config_table.add_row("Auto Login", "Yes" if whatsapp_config.get('auto_login', False) else "No")
+            config_table.add_row("Remember Session", "Yes" if whatsapp_config.get('remember_session', True) else "No")
             
-            # Show the auto-configured settings
             console.print(Panel(
-                f"Using {provider_settings['name']} server settings:\nSMTP: {smtp_server}:{smtp_port}\nIMAP: {imap_server}:{imap_port}",
-                title="[bold]Server Settings[/bold]",
+                config_table,
+                title="[bold]Current WhatsApp Configuration[/bold]",
                 border_style="blue",
                 box=box.ROUNDED
             ))
-        else:
-            # Manual configuration if not detected
-            smtp_server = Prompt.ask("[bold cyan]SMTP server[/bold cyan] (e.g., smtp.gmail.com)")
-            smtp_port = Prompt.ask("[bold cyan]SMTP port[/bold cyan] (e.g., 587)", default="587")
-            imap_server = Prompt.ask("[bold cyan]IMAP server[/bold cyan] (e.g., imap.gmail.com)")
-            imap_port = Prompt.ask("[bold cyan]IMAP port[/bold cyan] (e.g., 993)", default="993")
-            provider = None
+        
+        # Ask for configuration options
+        auto_login = Confirm.ask("Automatically connect to WhatsApp at startup?", default=False)
+        remember_session = Confirm.ask("Remember WhatsApp session (avoids scanning QR code every time)?", default=True)
+        
+        # Initialize WhatsApp manager if not already done
+        if not self.whatsapp_manager:
+            self.whatsapp_manager = WhatsAppManager(self.config_path)
+        
+        # Update configuration
+        success = self.whatsapp_manager.configure(auto_login, remember_session)
+        
+        if success:
+            self.display_success("WhatsApp configuration updated successfully")
             
-        # Now set up the email
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]Setting up email...[/bold blue]"),
-            console=console,
-            transient=True
-        ) as progress:
-            task = progress.add_task("[green]Testing connection...", total=None)
-            
-            # Set up email using the appropriate method based on EmailManager implementation
-            if hasattr(self.email_manager, 'setup_email_account'):
-                # New integrations version
-                result = self.email_manager.setup_email_account(email_address, email_password, provider)
-                if "successfully" in result.lower():
-                    self.email_setup_complete = True
-                    self.display_success("Email setup complete!")
-                else:
-                    self.display_error(f"Email setup failed: {result}")
-            elif hasattr(self.email_manager, 'setup_email'):
-                # Core version
-                success = self.email_manager.setup_email(
-                    email_address, email_password, 
-                    smtp_server, smtp_port, 
-                    imap_server, imap_port
-                )
-                
-                if success:
-                    self.email_setup_complete = True
-                    self.display_success("Email setup complete!")
-                else:
-                    self.display_error("Failed to set up email. Please check your credentials and try again.")
-            else:
-                self.display_error("Email setup not supported by the current EmailManager implementation.")
-                
-        # Check connection after setup
-        if getattr(self, 'email_setup_complete', False):
-            self.display_success(f"You can now send and receive emails as {email_address}")
+            # If auto-login is enabled, ask if the user wants to connect now
+            if auto_login:
+                connect_now = Confirm.ask("Connect to WhatsApp now?", default=True)
+                if connect_now:
+                    await self.handle_whatsapp_operation({'action': 'connect_whatsapp'})
         else:
-            self.display_warning("Email is not fully configured. Some features may not work correctly.")
-
-    def _detect_email_provider(self, email_address):
+            self.display_error("Failed to update WhatsApp configuration")
+            
+    async def whatsapp_command(self, args=None):
         """
-        Detect email provider from email address and return pre-configured settings
+        Handle WhatsApp commands.
         
         Args:
-            email_address: User's email address
+            args: Command arguments
+        """
+        # Import intent parser
+        from ai_assistant.utils.whatsapp_intent import WhatsAppIntentParser
+        
+        # Initialize WhatsApp manager if not already done
+        if not self.whatsapp_manager:
+            self.whatsapp_manager = WhatsAppManager(self.config_path)
+            
+        # Parse the arguments correctly - args might be a string or a list
+        if isinstance(args, str):
+            # If args is a string, split it into a list
+            args_list = args.strip().split()
+        else:
+            # If args is already a list or None, use it as is
+            args_list = args or []
+        
+        # Get the subcommand (if provided)
+        subcommand = args_list[0].lower() if args_list else ""
+        
+        # Show help if no arguments
+        if not subcommand:
+            # Show help for WhatsApp commands
+            console.print(Panel(
+                "WhatsApp Commands:\n\n"
+                "• [bold]/whatsapp setup[/bold cyan] - Configure WhatsApp integration\n"
+                "• [bold]/whatsapp connect[/bold cyan] - Connect to WhatsApp Web\n"
+                "• [bold]/whatsapp disconnect[/bold cyan] - Disconnect from WhatsApp Web\n"
+                "• [bold]/whatsapp send[/bold cyan] - Send a WhatsApp message\n"
+                "• [bold]/whatsapp contacts[/bold cyan] - List recent contacts",
+                title="[bold]WhatsApp Help[/bold]",
+                border_style="cyan",
+                box=box.ROUNDED
+            ))
+            return
+        
+        # Process WhatsApp subcommands
+        if subcommand == "setup":
+            await self.configure_whatsapp()
+        elif subcommand == "connect":
+            result = await self.handle_whatsapp_operation({'action': 'connect_whatsapp'})
+            self.display_info(result)
+        elif subcommand == "disconnect":
+            result = await self.handle_whatsapp_operation({'action': 'disconnect_whatsapp'})
+            self.display_info(result)
+        elif subcommand == "contacts":
+            result = await self.handle_whatsapp_operation({'action': 'list_contacts'})
+            self.display_info(result)
+        elif subcommand == "send":
+            # Extract recipient and message if provided
+            if len(args_list) >= 3:
+                recipient = args_list[1]
+                message = " ".join(args_list[2:])
+                result = await self.handle_whatsapp_operation({
+                    'action': 'send_whatsapp',
+                    'recipient': recipient,
+                    'message': message
+                })
+                self.display_info(result)
+            else:
+                # Interactive mode for sending a message
+                from rich.prompt import Prompt
+                
+                recipient = Prompt.ask("Enter recipient (phone number with country code or contact name)")
+                message = Prompt.ask("Enter message")
+                
+                if recipient and message:
+                    result = await self.handle_whatsapp_operation({
+                        'action': 'send_whatsapp',
+                        'recipient': recipient,
+                        'message': message
+                    })
+                    self.display_info(result)
+                else:
+                    self.display_error("Recipient and message are required")
+        else:
+            self.display_error(f"Unknown WhatsApp command: {subcommand}")
+            
+    async def whatsapp_ai_compose(self, recipient, instruction=None):
+        """
+        Use AI to compose a WhatsApp message.
+        
+        Args:
+            recipient (str): Recipient of the message
+            instruction (str, optional): Instructions for composing the message
             
         Returns:
-            dict: Provider settings or None if not detected
-        """
-        email_domain = email_address.split('@')[-1].lower()
-        
-        # Gmail
-        if email_domain in ['gmail.com', 'googlemail.com']:
-            return {
-                'name': 'Gmail',
-                'smtp_server': 'smtp.gmail.com',
-                'smtp_port': 587,
-                'imap_server': 'imap.gmail.com',
-                'imap_port': 993
-            }
-            
-        # Outlook/Hotmail
-        elif any(domain in email_domain for domain in ['outlook.com', 'hotmail.com', 'live.com', 'msn.com']):
-            return {
-                'name': 'Outlook/Hotmail',
-                'smtp_server': 'smtp-mail.outlook.com',
-                'smtp_port': 587,
-                'imap_server': 'outlook.office365.com',
-                'imap_port': 993
-            }
-            
-        # Yahoo
-        elif 'yahoo' in email_domain:
-            return {
-                'name': 'Yahoo Mail',
-                'smtp_server': 'smtp.mail.yahoo.com',
-                'smtp_port': 587,
-                'imap_server': 'imap.mail.yahoo.com',
-                'imap_port': 993
-            }
-            
-        # AOL
-        elif 'aol' in email_domain:
-            return {
-                'name': 'AOL Mail',
-                'smtp_server': 'smtp.aol.com',
-                'smtp_port': 587,
-                'imap_server': 'imap.aol.com',
-                'imap_port': 993
-            }
-            
-        # Zoho
-        elif 'zoho' in email_domain:
-            return {
-                'name': 'Zoho Mail',
-                'smtp_server': 'smtp.zoho.com',
-                'smtp_port': 587,
-                'imap_server': 'imap.zoho.com',
-                'imap_port': 993
-            }
-            
-        # iCloud
-        elif 'icloud' in email_domain or 'me.com' in email_domain:
-            return {
-                'name': 'iCloud Mail',
-                'smtp_server': 'smtp.mail.me.com',
-                'smtp_port': 587,
-                'imap_server': 'imap.mail.me.com',
-                'imap_port': 993
-            }
-        
-        # Provider not detected
-        return None
-            
-    async def compose_email(self, to_address=None, subject=None):
-        """
-        Compose and send an email to the specified address.
-        
-        Args:
-            to_address (str, optional): Recipient email address. If None, will prompt for it.
-            subject (str, optional): Email subject. If None, will prompt for it.
+            str: Result of the operation
         """
         try:
-            # First make sure email is configured
-            if not hasattr(self, 'email_manager') or not self.email_manager.is_configured():
-                await self.check_email_config()
-                
-                if not getattr(self, 'email_setup_complete', False):
-                    self.display_error("Email is not configured. Please run '/email setup' first.")
-                    return
+            # Ensure WhatsApp is initialized
+            if not self.whatsapp_manager:
+                self.display_warning("WhatsApp integration is not configured. Setting it up now.")
+                await self.whatsapp_command('setup')
             
-            # Prompt for recipient if not provided
-            if not to_address:
-                to_address = Prompt.ask("[bold cyan]Recipient email address[/bold cyan]")
+            # Get instructions for the AI if not provided
+            if not instruction:
+                purpose = Prompt.ask("[bold]What is the purpose of this message?[/bold]")
+                tone = Prompt.ask("[bold]What tone should the message have?[/bold]", choices=["friendly", "formal", "casual", "professional"], default="friendly")
+                length = Prompt.ask("[bold]How long should the message be?[/bold]", choices=["short", "medium", "long"], default="medium")
+                instruction = f"Write a {tone} WhatsApp message to {recipient} about {purpose}. The message should be {length} in length."
+            
+            # Use Rich progress bar for AI processing
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold blue]AI is composing your message...[/bold blue]"),
+                console=console,
+                transient=True
+            ) as progress:
+                task = progress.add_task("[green]Thinking...", total=None)
                 
-            # Show composition UI
+                # Create a prompt for the AI
+                ai_prompt = f"Compose a WhatsApp message to {recipient}. The message should be about: {instruction}"
+                ai_prompt += "\nThe message should be concise and appropriate for WhatsApp. Don't include any introduction or explanation, just the message content."
+                
+                # Generate the message
+                generated_message = await self.assistant.answer_async(ai_prompt)
+            
+            # Clean up the generated message
+            generated_message = generated_message.strip()
+            
+            # If message starts with a quote or similar, clean it up
+            if generated_message.startswith('"') and generated_message.endswith('"'):
+                generated_message = generated_message[1:-1]
+            
+            # Preview the message with improved formatting
             console.print(Panel(
-                f"Composing email to: {to_address}",
-                title="[bold]New Email[/bold]",
+                f"[bold]Generated message:[/bold]\n\n{generated_message}",
+                title="[bold]AI-Generated WhatsApp Message[/bold]",
                 border_style="cyan",
                 box=box.ROUNDED
             ))
             
-            # Get subject if not provided
-            if not subject:
-                subject = Prompt.ask("[bold cyan]Subject[/bold cyan]")
+            # Ask for what to do with the message
+            console.print("[bold cyan]What would you like to do with this message?[/bold cyan]")
+            choice = Prompt.ask(
+                "Options",
+                choices=["1", "2", "3", "4"],
+                default="1"
+            )
+            
+            if choice == "1":  # Send as is
+                console.print(f"[bold cyan]Sending message to {recipient}...[/bold cyan]")
+                success = await asyncio.to_thread(self.whatsapp_manager.send_message, recipient, generated_message)
                 
-            # Get body with multi-line input
-            console.print("[bold cyan]Body:[/bold cyan] (Type your message. When done, enter an empty line)")
-            
-            lines = []
-            while True:
-                line = input()
-                if not line and lines:  # Empty line and we have content
-                    break
-                lines.append(line)
+                if success:
+                    self.display_success(f"Message sent to {recipient}")
+                    return f"Message sent to {recipient}"
+                else:
+                    self.display_error(f"Failed to send message to {recipient}")
+                    return f"Failed to send message to {recipient}"
+                    
+            elif choice == "2":  # Edit before sending
+                edited_message = Prompt.ask("[bold]Edit the message[/bold]", default=generated_message)
+                console.print(f"[bold cyan]Sending edited message to {recipient}...[/bold cyan]")
+                success = await asyncio.to_thread(self.whatsapp_manager.send_message, recipient, edited_message)
                 
-            body = "\n".join(lines)
-            
-            # Preview the email
-            console.print(Panel(
-                f"[bold]To:[/bold] {to_address}\n"
-                f"[bold]Subject:[/bold] {subject}\n\n"
-                f"{body[:300]}{'...' if len(body) > 300 else ''}",
-                title="[bold]Email Preview[/bold]",
-                border_style="green",
-                box=box.ROUNDED
-            ))
-            
-            # Confirm sending
-            if Confirm.ask("Send this email?"):
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[bold blue]Sending email...[/bold blue]"),
-                    console=console,
-                    transient=True
-                ) as progress:
-                    task = progress.add_task("[green]Connecting to SMTP server...", total=None)
-                    
-                    # Send the email
-                    result = self.email_manager.send_email(to_address, subject, body)
-                    
-                    # Check the result
-                    if result and "success" in result.lower():
-                        self.display_success("Email sent successfully!")
-                    else:
-                        self.display_error(f"Failed to send email: {result}")
-            else:
-                self.display_warning("Email sending canceled")
+                if success:
+                    self.display_success(f"Edited message sent to {recipient}")
+                    return f"Edited message sent to {recipient}"
+                else:
+                    self.display_error(f"Failed to send edited message to {recipient}")
+                    return f"Failed to send edited message to {recipient}"
+                
+            elif choice == "3":  # Regenerate
+                console.print("[bold cyan]New instructions for regenerating the message:[/bold cyan]")
+                new_instructions = Prompt.ask("[bold]New instructions[/bold]")
+                return await self.whatsapp_ai_compose(recipient, new_instructions)
+                
+            elif choice == "4":  # Cancel
+                self.display_warning("Message sending canceled")
+                return "Message sending canceled"
                 
         except Exception as e:
-            self.display_error(f"Error composing email: {str(e)}")
-            logger.exception("Error in compose_email:")
+            logger.exception("Error in WhatsApp AI compose")
+            self.display_error(f"Error composing WhatsApp message: {str(e)}")
+            return f"Error composing WhatsApp message: {str(e)}"
 
-    async def configure_email(self):
-        """Configure email integration settings."""
-        console.print(Panel(
-            "[bold]Email Configuration[/bold]\n"
-            "Set up your email account to send and receive emails through the assistant.",
-            title="[bold]Email Integration[/bold]",
-            border_style="blue",
-            box=box.ROUNDED
-        ))
-        
-        # Check if email is already configured
-        if hasattr(self, 'email_manager'):
-            await self.check_email_config()
-            current_status = "configured" if getattr(self, 'email_setup_complete', False) else "not configured"
-            
-            # Display current status
-            if getattr(self, 'email_setup_complete', False):
-                if hasattr(self.email_manager, 'email_address'):
-                    console.print(f"[green]✓ Email is currently configured for: {self.email_manager.email_address}[/green]")
-                else:
-                    console.print(f"[green]✓ Email is currently configured[/green]")
-            else:
-                console.print("[red]✗ Email is not currently configured[/red]")
-            
-            # Options
-            console.print("\n[bold cyan]Options:[/bold cyan]")
-            console.print("[cyan]1.[/cyan] Set up new email account")
-            console.print("[cyan]2.[/cyan] Test current configuration")
-            console.print("[cyan]3.[/cyan] Return to settings menu")
-            
-            choice = Prompt.ask("Enter your choice", choices=["1", "2", "3"], default="3")
-            
-            if choice == "1":
-                await self.email_setup()
-            elif choice == "2":
-                # Test the current configuration
-                if not getattr(self, 'email_setup_complete', False):
-                    self.display_error("Email is not configured. Please set it up first.")
-                else:
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[bold blue]Testing email connection...[/bold blue]"),
-                        console=console,
-                        transient=True
-                    ) as progress:
-                        task = progress.add_task("[green]Connecting to servers...", total=None)
-                        
-                        if hasattr(self.email_manager, 'connect'):
-                            result = self.email_manager.connect()
-                            if result:
-                                self.display_success("Email connection test successful!")
-                            else:
-                                self.display_error("Failed to connect to email servers. Check your credentials.")
-                        else:
-                            # For core EmailManager that doesn't have connect method
-                            self.display_success("Email configuration loaded successfully.")
-            # Choice 3 returns to settings menu
-        else:
-            self.display_error("Email manager is not initialized. This is an internal error.")
-            
-        # Return to settings menu
-        await self.configure()
-
-    async def handle_email_operation(self, intent, original_query=None):
+    async def handle_whatsapp_operation(self, intent):
         """
-        Handle email operations based on intent.
+        Handle WhatsApp operations based on intent.
         
         Args:
-            intent: Dictionary containing email operation details
-            original_query: Original user query for AI assistance
+            intent: Dictionary containing WhatsApp operation details
             
         Returns:
             String describing the result
         """
-        if not hasattr(self, 'email_manager') or self.email_manager is None:
-            return "Email functionality is not available"
-            
-        # Check if email is configured
-        if not getattr(self, 'email_setup_complete', False):
-            await self.check_email_config()
-            if not getattr(self, 'email_setup_complete', False):
-                return "Email is not configured. Please run '/email setup' first."
+        # Initialize WhatsApp manager if not already done
+        if not self.whatsapp_manager:
+            self.whatsapp_manager = WhatsAppManager(self.config_path)
         
-        operation = intent.get('operation', '')
+        action = intent.get('action')
         
-        if operation == 'ai_compose_email':
-            to_address = intent.get('to_address')
-            await self.email_ai_write(to_address)
-            return "Email composition completed"
+        if action == 'setup_whatsapp':
+            await self.configure_whatsapp()
+            return "WhatsApp configuration completed"
             
-        elif operation == 'send_email':
-            to_address = intent.get('to_address')
-            subject = intent.get('subject')
-            body = intent.get('body')
+        elif action == 'connect_whatsapp':
+            console.print("[bold cyan]Connecting to WhatsApp Web...[/bold cyan]")
+            console.print("If prompted, scan the QR code with your phone to log in.")
             
-            if not all([to_address, subject, body]):
-                return "Missing required information for sending email"
+            # Connect in a non-blocking way
+            success = await asyncio.to_thread(self.whatsapp_manager.connect)
+            
+            if success:
+                self.display_success("Connected to WhatsApp Web")
+                return "Connected to WhatsApp Web"
+            else:
+                self.display_error("Failed to connect to WhatsApp Web")
+                return "Failed to connect to WhatsApp Web"
                 
-            # Use the email manager to send the email
-            result = self.email_manager.send_email(to_address, subject, body)
-            return result
+        elif action == 'disconnect_whatsapp':
+            success = await asyncio.to_thread(self.whatsapp_manager.disconnect)
             
-        elif operation == 'read_emails':
-            # Call read_emails method
-            await self.read_emails()
-            return "Email reading completed"
+            if success:
+                self.display_success("Disconnected from WhatsApp Web")
+                return "Disconnected from WhatsApp Web"
+            else:
+                self.display_error("Failed to disconnect from WhatsApp Web")
+                return "Failed to disconnect from WhatsApp Web"
+                
+        elif action == 'list_contacts':
+            contacts = await asyncio.to_thread(self.whatsapp_manager.get_recent_contacts)
+            
+            if contacts:
+                contact_table = Table(title="Recent WhatsApp Contacts")
+                contact_table.add_column("#", style="cyan")
+                contact_table.add_column("Contact Name")
+                
+                for i, contact in enumerate(contacts, 1):
+                    contact_table.add_row(str(i), contact)
+                
+                console.print(contact_table)
+                return f"Found {len(contacts)} recent contacts"
+            else:
+                self.display_warning("No recent contacts found or not connected to WhatsApp Web")
+                return "No recent contacts found or not connected to WhatsApp Web"
+                
+        elif action == 'send_whatsapp':
+            recipient = intent.get('recipient', '')
+            message = intent.get('message', '')
+            
+            # If we have an AI instruction, use the assistant to generate the message
+            if 'ai_instruction' in intent:
+                instruction = intent.get('ai_instruction', '')
+                tone = intent.get('tone', 'neutral')
+                
+                # Generate a message using the AI assistant
+                ai_prompt = f"Write a WhatsApp message to {recipient} with a {tone} tone. The message should be about: {instruction}"
+                generated_message = await self.assistant.generate_text(ai_prompt)
+                
+                # Use the generated message if it's not empty
+                if generated_message:
+                    message = generated_message
+                    console.print(Panel(
+                        f"[bold]Generated message:[/bold]\n\n{message}",
+                        title="[bold]AI-Generated Message[/bold]",
+                        border_style="cyan",
+                        box=box.ROUNDED
+                    ))
+            
+            if not recipient:
+                self.display_error("Recipient is required")
+                return "Recipient is required"
+                
+            if not message:
+                self.display_error("Message is required")
+                return "Message is required"
+            
+            # Send the message
+            console.print(f"[bold cyan]Sending message to {recipient}...[/bold cyan]")
+            success = await asyncio.to_thread(self.whatsapp_manager.send_message, recipient, message)
+            
+            if success:
+                self.display_success(f"Message sent to {recipient}")
+                return f"Message sent to {recipient}"
+            else:
+                self.display_error(f"Failed to send message to {recipient}")
+                return f"Failed to send message to {recipient}"
+                
+        elif action == 'ai_compose_whatsapp':
+            recipient = intent.get('recipient', '')
+            instruction = intent.get('instruction', '')
+            
+            if not recipient:
+                self.display_error("Recipient is required")
+                return "Recipient is required"
+                
+            # Use the dedicated AI compose function
+            return await self.whatsapp_ai_compose(recipient, instruction)
             
         else:
-            return f"Unknown email operation: {operation}"
+            self.display_error(f"Unknown WhatsApp action: {action}")
+            return f"Unknown WhatsApp action: {action}"
+
+    async def handle_email_operation(self, intent, prompt=None):
+        """
+        Handle email operations based on detected intent.
+        
+        Args:
+            intent (dict): Dictionary containing email operation details
+            prompt (str, optional): The original prompt text for context
+            
+        Returns:
+            str: Result message
+        """
+        logger.info(f"Handling email operation: {intent}")
+        operation = intent.get('operation', '')
+        
+        try:
+            # Handle AI email composition
+            if operation == 'ai_compose_email':
+                to_address = intent.get('to_address')
+                await self.email_ai_write(to_address, prompt=prompt)
+                return "Email composition initiated"
+                
+            # Handle email reading
+            elif operation == 'read_email' or operation == 'list_emails':
+                email_id = intent.get('email_id')
+                if email_id:
+                    await self.email_command(f"read {email_id}")
+                else:
+                    await self.email_command("read")
+                return "Displaying emails"
+                
+            # Handle email sending
+            elif operation == 'send_email':
+                to_address = intent.get('to_address')
+                if not to_address:
+                    return "Please specify a recipient email address"
+                
+                subject = intent.get('subject', '')
+                content = intent.get('content', '')
+                await self.email_command(f"send {to_address} {subject} {content}")
+                return f"Email sent to {to_address}"
+                
+            # Handle email setup
+            elif operation == 'setup_email':
+                await self.email_command("setup")
+                return "Email setup initiated"
+                
+            # Handle email reply
+            elif operation == 'reply_to_email':
+                email_id = intent.get('email_id')
+                if not email_id:
+                    return "Please specify an email ID to reply to"
+                
+                await self.email_command(f"reply {email_id}")
+                return f"Replying to email #{email_id}"
+                
+            # Handle email forwarding
+            elif operation == 'forward_email':
+                email_id = intent.get('email_id')
+                to_address = intent.get('to_address')
+                if not email_id:
+                    return "Please specify an email ID to forward"
+                
+                command = f"forward {email_id}"
+                if to_address:
+                    command += f" {to_address}"
+                
+                await self.email_command(command)
+                return f"Forwarding email #{email_id}"
+                
+            # Handle email deletion
+            elif operation == 'delete_email':
+                email_id = intent.get('email_id')
+                if not email_id:
+                    return "Please specify an email ID to delete"
+                
+                await self.email_command(f"delete {email_id}")
+                return f"Deleted email #{email_id}"
+                
+            # Handle generic email operations
+            else:
+                await self.email_command("")
+                return "Email command executed"
+                
+        except Exception as e:
+            logger.error(f"Error in handle_email_operation: {str(e)}")
+            return f"Error processing email operation: {str(e)}"
+
+    async def run(self):
+        """Run the QuackQuery application."""
+        console.clear()
+        console.print(Panel.fit(
+            "🦆 [bold cyan]QuackQuery AI Assistant[/bold cyan] [green]initialized[/green]",
+            box=box.ROUNDED,
+            border_style="cyan",
+            title="Welcome",
+            subtitle="v1.0"
+        ))
+        
+        # If WhatsApp auto-login is enabled, connect now that we have a running event loop
+        if hasattr(self, 'whatsapp_auto_login') and self.whatsapp_auto_login:
+            try:
+                await self.handle_whatsapp_operation({'action': 'connect_whatsapp'})
+            except Exception as e:
+                logger.error(f"Error during WhatsApp auto-login: {str(e)}")
+                self.display_warning("WhatsApp auto-connection failed. You can try connecting manually later.")
+        
+        while True:
+            try:
+                # Display menu in a styled panel
+                menu_table = Table(show_header=False, box=box.SIMPLE)
+                menu_table.add_column("Option", style="cyan")
+                menu_table.add_column("Description")
+                menu_table.add_row("S", "Speak to the assistant")
+                menu_table.add_row("T", "Type a question")
+                menu_table.add_row("C", "Configure settings")
+                menu_table.add_row("Q", "Quit")
+                
+                console.print(Panel(
+                    menu_table,
+                    title="[bold]Main Menu[/bold]",
+                    border_style="blue",
+                    box=box.ROUNDED
+                ))
+                
+                # Use Rich prompt for input
+                user_input = Prompt.ask("\nEnter your choice", choices=["s", "t", "c", "q"], default="t").lower()
+                
+                if user_input == 's':
+                    await self.handle_speech_input()
+                    console.print("\n[green]✅ Ready for next command...[/green]")
+                elif user_input == 't':
+                    await self.handle_text_input()
+                    console.print("\n[green]✅ Ready for next command...[/green]")
+                elif user_input == 'c':
+                    await self.configure()
+                    console.print("\n[green]✅ Settings updated. Ready for next command...[/green]")
+                elif user_input == 'q':
+                    console.print("\n[yellow]Exiting assistant. Goodbye! 👋[/yellow]")
+                    break
+                else:
+                    console.print("\n[bold red]❌ Invalid input. Please choose S, T, C, or Q.[/bold red]")
+            except Exception as e:
+                logger.error(f"Error in main loop: {str(e)}")
+                self.display_error(f"An error occurred: {str(e)}")
 
 def load_config(config_path="config.json"):
     """
