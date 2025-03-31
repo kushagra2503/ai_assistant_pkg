@@ -20,7 +20,7 @@ QuackQuery is a versatile AI assistant with multiple integrations including GitH
 ### From PyPI (Recommended)
 
 ```bash
-pip install QuackQuery
+pip install quackquery
 ```
 
 ### From Source
