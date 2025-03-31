@@ -45,6 +45,8 @@ setup(
         "pyaudio",
         "rich",
         "email-validator>=2.0.0"  # For email validation
+        "selenium"
+        "webdriver-manager"
     ],
     entry_points={
         "console_scripts": [
