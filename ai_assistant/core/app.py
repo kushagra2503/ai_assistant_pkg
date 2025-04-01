@@ -1500,6 +1500,12 @@ class AIAssistantApp:
 
     def _format_and_display_response(self, response):
         """Format and display AI response with Rich UI enhancements."""
+        # Check if response is None or empty
+        if not response:
+            logger.warning("Received empty response from assistant")
+            console.print("[yellow]No response received from assistant.[/yellow]")
+            return
+            
         # Check for code blocks in the response
         if "```" in response:
             # Split the response by code blocks
@@ -2874,11 +2880,11 @@ class AIAssistantApp:
             # Show help for WhatsApp commands
             console.print(Panel(
                 "WhatsApp Commands:\n\n"
-                "• [bold]/whatsapp setup[/bold cyan] - Configure WhatsApp integration\n"
-                "• [bold]/whatsapp connect[/bold cyan] - Connect to WhatsApp Web\n"
-                "• [bold]/whatsapp disconnect[/bold cyan] - Disconnect from WhatsApp Web\n"
-                "• [bold]/whatsapp send[/bold cyan] - Send a WhatsApp message\n"
-                "• [bold]/whatsapp contacts[/bold cyan] - List recent contacts",
+                "• [bold cyan]setup[/bold cyan] - Configure WhatsApp integration\n"
+                "• [bold cyan]connect[/bold cyan] - Connect to WhatsApp Web\n"
+                "• [bold cyan]disconnect[/bold cyan] - Disconnect from WhatsApp Web\n"
+                "• [bold cyan]send[/bold cyan] - Send a WhatsApp message\n"
+                "• [bold cyan]contacts[/bold cyan] - List recent contacts",
                 title="[bold]WhatsApp Help[/bold]",
                 border_style="cyan",
                 box=box.ROUNDED
@@ -2984,11 +2990,19 @@ class AIAssistantApp:
             
             # Ask for what to do with the message
             console.print("[bold cyan]What would you like to do with this message?[/bold cyan]")
-            choice = Prompt.ask(
-                "Options",
-                choices=["1", "2", "3", "4"],
-                default="1"
-            )
+            choices = {
+                "1": "Send as is",
+                "2": "Edit before sending",
+                "3": "Regenerate with new instructions",
+                "4": "Save as draft (not implemented)",
+                "5": "Cancel"
+            }
+            
+            # Display options with styling
+            for key, value in choices.items():
+                console.print(f"[bold blue]{key}.[/bold blue] {value}")
+                
+            choice = Prompt.ask("[bold]Select an option[/bold]", choices=list(choices.keys()), default="2")
             
             if choice == "1":  # Send as is
                 console.print(f"[bold cyan]Sending message to {recipient}...[/bold cyan]")
