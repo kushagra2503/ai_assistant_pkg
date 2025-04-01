@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="QuackQuery",
-    version="0.4.1",
+    version="0.4.2",
     author="Kushagra",
     author_email="radhikayash2@gmail.com",
     description="A versatile AI assistant with multi-model support",
