@@ -48,6 +48,8 @@ setup(
         "selenium",
         "webdriver-manager"
     ],
+    license="MIT",
+    license_files=["LICENSE"],
     entry_points={
         "console_scripts": [
             "quackquery=ai_assistant.cli:main",
