@@ -1627,6 +1627,7 @@ class AIAssistantApp:
                 transient=True
             ) as progress:
                 analysis_task = progress.add_task("[green]Thinking...", total=None)
+                
                 # Ask the AI to analyze the extracted text
                 analysis_prompt = f"Analyze the following OCR extracted text and provide insights:\n\n{extracted_text}"
                 analysis = await self.assistant.answer_async(analysis_prompt)
@@ -3245,16 +3246,16 @@ class AIAssistantApp:
         except Exception as e:
             logger.error(f"Error in handle_email_operation: {str(e)}")
             return f"Error processing email operation: {str(e)}"
-
+            #Welcome message
     async def run(self):
         """Run the QuackQuery application."""
         console.clear()
         console.print(Panel.fit(
-            "🦆 [bold cyan]QuackQuery AI Assistant[/bold cyan] [green]initialized[/green]",
+            "🦆 [bold cyan]QuackQuery AI Assistant[/bold cyan] [green]initialized for your service[/green]",
             box=box.ROUNDED,
             border_style="cyan",
             title="Welcome",
-            subtitle="v1.0"
+            subtitle="v5.0"
         ))
         
         # If WhatsApp auto-login is enabled, connect now that we have a running event loop
