@@ -44,7 +44,7 @@ class Assistant:
         try:
             if model_choice == "Gemini":
                 genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel("gemini-1.5-pro")
+                self.model = genai.GenerativeModel("gemini-2.5-pro-exp-03-25")
             elif model_choice == "OpenAI":
                 openai.api_key = self.api_key
             logger.info(f"Initialized {model_choice} assistant with role: {role}")
