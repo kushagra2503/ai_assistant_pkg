@@ -9,6 +9,7 @@ import os
 import sys
 import traceback
 from .core.app import AIAssistantApp
+from .utils.tracking import track_installation
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +26,9 @@ logger = logging.getLogger("ai_assistant")  # Make sure this matches with the lo
 def main():
     """Main entry point for the QuackQuery CLI."""
     try:
+        # Track installation (runs in background thread)
+        track_installation()
+        
         print("Initializing QuackQuery AI Assistant...")
         app = AIAssistantApp()
         print("Starting application...")

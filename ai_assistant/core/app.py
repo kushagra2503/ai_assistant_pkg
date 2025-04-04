@@ -39,6 +39,8 @@ import smtplib
 import imaplib
 import tempfile
 import subprocess
+from rich.columns import Columns
+import pandas as pd
 
 # Load environment variables for API keys
 load_dotenv()
@@ -237,7 +239,10 @@ class AIAssistantApp:
             "/ocr": self.ocr_command,
             "/github": self.github_command,
             "/email": self.email_command,
-            "/whatsapp": self.whatsapp_command
+            "/whatsapp": self.whatsapp_command,
+            "/stats": self.stats_command,
+            "/excel": self.excel_command,  # Add the Excel command
+            "/code-edit": self.code_edit_command
         }
 
     async def process_command(self, text):
@@ -290,6 +295,21 @@ class AIAssistantApp:
         # WhatsApp command
         elif command == "/whatsapp":
             await self.whatsapp_command(args)
+            return True
+            
+        # Stats command
+        elif command == "/stats":
+            await self.stats_command(args)
+            return True
+            
+        # Excel command
+        elif command == "/excel":
+            await self.excel_command(args)
+            return True
+            
+        # Code-edit command
+        elif command == "/code-edit":
+            await self.code_edit_command(args)
             return True
             
         # Unknown command
@@ -437,19 +457,79 @@ class AIAssistantApp:
                 
             elif command == "whatsapp":
                 console.print(Panel(
-                    "The WhatsApp command allows you to interact with WhatsApp.\n\n"
+                    "The WhatsApp command allows you to send and manage WhatsApp messages.\n\n"
                     "[bold cyan]Subcommands:[/bold cyan]\n"
                     "• [bold cyan]setup[/bold cyan] - Configure WhatsApp integration\n"
                     "• [bold cyan]connect[/bold cyan] - Connect to WhatsApp Web\n"
                     "• [bold cyan]disconnect[/bold cyan] - Disconnect from WhatsApp Web\n"
                     "• [bold cyan]send[/bold cyan] - Send a WhatsApp message\n"
+                    "• [bold cyan]ai[/bold cyan] - Use AI to compose a message\n"
                     "• [bold cyan]contacts[/bold cyan] - List recent contacts\n\n"
                     "[bold cyan]Examples:[/bold cyan]\n"
-                    "• [bold]/whatsapp setup[/bold cyan] - Configure WhatsApp\n"
+                    "• [bold]/whatsapp setup[/bold cyan] - Set up WhatsApp integration\n"
                     "• [bold]/whatsapp connect[/bold cyan] - Connect to WhatsApp Web\n"
-                    "• [bold]/whatsapp send +1234567890 Hello, how are you?[/bold cyan] - Send a message to a contact\n"
-                    "• [bold]/whatsapp contacts[/bold cyan] - List recent contacts",
+                    "• [bold]/whatsapp send +1234567890 Hello![/bold cyan] - Send a message\n"
+                    "• [bold]/whatsapp ai +1234567890[/bold cyan] - AI will help write a message\n"
+                    "• [bold]/whatsapp ai +1234567890 Business \"Schedule meeting\"[/bold cyan] - Use Business role\n\n"
+                    "[bold cyan]Role-based message generation:[/bold cyan]\n"
+                    "You can now use any of the assistant roles to generate WhatsApp messages. Available roles include:\n"
+                    "• General - All-purpose assistant\n"
+                    "• Business Consultant - Professional business communication\n"
+                    "• Sales Agent - Persuasive sales messaging\n"
+                    "• Personal Coach - Supportive and motivational\n"
+                    "• Creative Writer - Engaging and imaginative\n"
+                    "And many more. Use them to tailor your message style to the recipient and purpose.",
                     title="[bold]WhatsApp Command Help[/bold]",
+                    border_style="blue",
+                    box=box.ROUNDED
+                ))
+                
+            elif command == "stats":
+                console.print(Panel(
+                    "The stats command shows installation statistics for QuackQuery.\n\n"
+                    "[bold cyan]Syntax:[/bold cyan]\n"
+                    "• [bold]/stats[/bold] - Show how many systems have QuackQuery installed\n\n"
+                    "[bold cyan]Options:[/bold cyan]\n"
+                    "• [bold]/stats detailed[/bold] - Show detailed statistics by platform, version, etc.",
+                    title="[bold]Stats Command Help[/bold]",
+                    border_style="blue",
+                    box=box.ROUNDED
+                ))
+                
+            elif command == "excel":
+                console.print(Panel(
+                    "The Excel command allows you to work with Excel files using natural language.\n\n"
+                    "[bold cyan]Capabilities:[/bold cyan]\n"
+                    "• List, open, and analyze Excel files\n"
+                    "• Extract and filter data using natural language\n"
+                    "• Create visualizations and charts\n"
+                    "• Perform data analysis and calculations\n"
+                    "• Connect directly to Excel application\n\n"
+                    "[bold cyan]Examples:[/bold cyan]\n"
+                    "• [bold]/excel list all spreadsheets[/bold] - Find all Excel files\n"
+                    "• [bold]/excel show the file sales_data.xlsx[/bold] - Display contents\n"
+                    "• [bold]/excel analyze data in budget.xlsx[/bold] - Get statistics\n"
+                    "• [bold]/excel create bar chart from sales.xlsx with x as Month and y as Revenue[/bold]\n"
+                    "• [bold]/excel filter data where Revenue > 1000 from sales.xlsx[/bold]\n"
+                    "• [bold]/excel extract top 10 rows from customer_data.xlsx[/bold]",
+                    title="[bold]Excel Command Help[/bold]",
+                    border_style="green",
+                    box=box.ROUNDED
+                ))
+                
+            elif command == "code-edit":
+                console.print(Panel(
+                    "The code-edit command allows you to edit code files using natural language.\n\n"
+                    "[bold cyan]Syntax:[/bold cyan]\n"
+                    "• [bold]/code-edit [file_path][/bold] - Edit a code file\n"
+                    "• [bold]/code-edit [file_path] [instructions][/bold] - Edit a code file with specific instructions\n\n"
+                    "[bold cyan]Examples:[/bold cyan]\n"
+                    "• [bold]/code-edit my_script.py[/bold] - Edit the code file\n"
+                    "• [bold]/code-edit my_script.py \"Add a comment at the beginning of the file\"[/bold]\n\n"
+                    "[bold cyan]Options:[/bold cyan]\n"
+                    "• You can use natural language to describe changes\n"
+                    "• You can specify specific instructions for the changes",
+                    title="[bold]Code Edit Command Help[/bold]",
                     border_style="blue",
                     box=box.ROUNDED
                 ))
@@ -459,91 +539,701 @@ class AIAssistantApp:
                 console.print("Type [bold]/help[/bold] for a list of all commands")
                 
         else:
-            # Main help menu
-            main_help = Table(
-                title="🦆 QuackQuery AI Assistant Commands",
-                box=box.ROUNDED,
-                border_style="blue",
-                title_style="bold cyan",
-                min_width=80
-            )
+            # General help - list all commands
+            command_list = [
+                "• [bold]/help[/bold] - Show this help message",
+                "• [bold]/ocr[/bold] - Extract text from images",
+                "• [bold]/document[/bold] - Work with documents",
+                "• [bold]/web[/bold] - Search and browse the web",
+                "• [bold]/email[/bold] - Email management",
+                "• [bold]/github[/bold] - GitHub integration",
+                "• [bold]/whatsapp[/bold] - WhatsApp messaging",
+                "• [bold]/stats[/bold] - Show installation statistics",
+                "• [bold]/exit[/bold] - Exit the assistant"
+            ]
             
-            main_help.add_column("Command", style="bold cyan", no_wrap=True)
-            main_help.add_column("Description", style="")
-            main_help.add_column("Examples", style="green")
+            commands_text = "\n".join(command_list)
             
-            # Core commands
-            main_help.add_row(
-                "/help [command]", 
-                "Show help information for all commands or a specific command",
-                "/help\n/help ocr"
-            )
-            
-            main_help.add_row(
-                "/voice", 
-                "Start voice recognition mode to speak commands",
-                "/voice"
-            )
-            
-            main_help.add_row(
-                "/config [subcommand]", 
-                "Configure assistant settings (model, role, etc.)",
-                "/config model\n/config role"
-            )
-            
-            main_help.add_row(
-                "/ocr [file_path]", 
-                "Extract text from screen area or image file",
-                "/ocr\n/ocr screenshot.png"
-            )
-            
-            main_help.add_row(
-                "/web [search/open] [query/url]", 
-                "Search the web or open a specific URL",
-                "/web search AI news\n/web open https://example.com"
-            )
-            
-            main_help.add_row(
-                "/document [summarize/generate/analyze]", 
-                "Work with documents (summarize, generate, analyze)",
-                "/document summarize report.pdf\n/document generate"
-            )
-            
-            main_help.add_row(
-                "/email [compose/ai/read/setup]", 
-                "Compose, generate, or read emails",
-                "/email compose john@example.com\n/email ai boss@company.com"
-            )
-            
-            main_help.add_row(
-                "/github [repos/issues/create/setup]", 
-                "Interact with GitHub repositories",
-                "/github repos\n/github issues user/repo"
-            )
-            
-            main_help.add_row(
-                "/whatsapp [action]", 
-                "Interact with WhatsApp (setup, connect, send, contacts)",
-                "/whatsapp setup\n/whatsapp send +1234567890 Hello"
-            )
-            
-            main_help.add_row(
-                "/exit", 
-                "Exit the application",
-                "/exit"
-            )
-            
-            console.print(main_help)
-            
-            # Additional help tips
             console.print(Panel(
-                "• Type a question or statement directly to chat with the AI assistant\n"
-                "• Use [bold]/help [command][/bold] to get detailed help for a specific command\n"
-                "• Press [bold]Ctrl+C[/bold] at any time to cancel the current operation",
-                title="[bold]Tips[/bold]",
-                border_style="green",
+                f"[bold cyan]Available Commands:[/bold cyan]\n\n{commands_text}\n\n"
+                f"Type [bold]/help command[/bold] for detailed help on a specific command.",
+                title="[bold]QuackQuery Help[/bold]",
+                border_style="blue",
                 box=box.ROUNDED
             ))
+    
+    async def stats_command(self, args=None):
+        """Show statistics about the AI assistant."""
+        from rich.columns import Columns
+        from rich.console import Console
+        from rich.panel import Panel
+        
+        console = Console()
+        
+        console.print(Panel(
+            "[bold]AI Assistant Statistics[/bold]\n",
+            title="[bold]Stats[/bold]",
+            border_style="blue",
+            box=box.ROUNDED
+        ))
+
+        # Display stats here
+        if hasattr(self, 'stats') and self.stats:
+            stats_panels = []
+            for key, value in self.stats.items():
+                if key == 'recent_commands':
+                    continue
+                stats_panels.append(
+                    Panel(f"[bold cyan]{value}[/bold cyan]", title=f"[bold]{key.replace('_', ' ').title()}[/bold]", border_style="green")
+                )
+            
+            console.print(Columns(stats_panels))
+        else:
+            console.print("[yellow]No statistics available yet.[/yellow]")
+
+    async def excel_command(self, user_input=None):
+        """Handle Excel operations through natural language commands."""
+        from rich.panel import Panel
+        from rich.console import Console
+        from rich.table import Table
+        from rich.box import ROUNDED
+        from rich.prompt import Prompt, Confirm
+        
+        console = Console()
+        
+        if not user_input:
+            # Show Excel command help
+            console.print(Panel(
+                "The Excel command allows you to work with Excel files using natural language.\n\n"
+                "[bold cyan]Examples:[/bold cyan]\n"
+                "• [bold]/excel list all spreadsheets[/bold] - Find all Excel files\n"
+                "• [bold]/excel show the file sales_data.xlsx[/bold] - Display contents\n"
+                "• [bold]/excel analyze data in budget.xlsx[/bold] - Get statistics\n"
+                "• [bold]/excel create bar chart from sales.xlsx[/bold]\n"
+                "• [bold]/excel filter data where Revenue > 1000 from sales.xlsx[/bold]\n"
+                "• [bold]/excel extract top 10 rows from customer_data.xlsx[/bold]",
+                title="[bold]Excel Command Help[/bold]",
+                border_style="green",
+                box=ROUNDED
+            ))
+            return
+
+        # Import the Excel handler and NLP processor
+        from ai_assistant.utils.excel_handler import ExcelHandler
+        from ai_assistant.utils.excel_nlp import ExcelNLProcessor
+        
+        # Initialize Excel handler and NLP processor
+        excel_handler = ExcelHandler()
+        excel_nlp = ExcelNLProcessor()
+        
+        # Parse the user input
+        operation = excel_nlp.parse_command(user_input)
+        
+        console.print(f"[bold cyan]Processing Excel command: {operation['operation']}[/bold cyan]")
+        
+        # Process operations based on the operation type
+        if operation["operation"] == "list_files":
+            # List Excel files
+            directory = operation.get("directory", "")
+            
+            console.print(f"[bold cyan]Searching for Excel files{' in ' + directory if directory else ''}...[/bold cyan]")
+            
+            excel_files = excel_handler.list_excel_files(directory)
+            
+            if not excel_files:
+                console.print("[yellow]No Excel files found.[/yellow]")
+                return
+                
+            # Create table for display
+            table = Table(title="Excel Files", box=ROUNDED)
+            table.add_column("File", style="cyan")
+            table.add_column("Info")
+            
+            for file in excel_files:
+                # Get file info
+                file_info = excel_handler.get_excel_info(file)
+                
+                if "error" in file_info:
+                    info_text = f"[red]Error: {file_info['error']}[/red]"
+                else:
+                    sheet_count = len(file_info.get("sheets", []))
+                    sheet_text = f"{sheet_count} sheet{'s' if sheet_count != 1 else ''}"
+                    
+                    # For the first sheet, show row and column count
+                    if sheet_count > 0:
+                        first_sheet = file_info["sheets"][0]
+                        rows = first_sheet.get("rows", 0)
+                        columns = first_sheet.get("columns", 0)
+                        sheet_text += f" (Sheet 1: {rows} rows × {columns} columns)"
+                        
+                    info_text = sheet_text
+                    
+                table.add_row(file, info_text)
+                
+            console.print(table)
+            
+            # Ask if user wants to open any of the files
+            if Confirm.ask("[bold]Would you like to open one of these files?[/bold]", default=False):
+                file_to_open = Prompt.ask("[bold]Enter the file name to open[/bold]")
+                await self.excel_command(f"show the file {file_to_open}")
+                
+        elif operation["operation"] == "show_file":
+            # Show Excel file contents
+            file_name = operation.get("file_name")
+            sheet_name = operation.get("sheet_name")
+            
+            if not file_name:
+                console.print("[bold red]Error: No file name specified.[/bold red]")
+                return
+                
+            console.print(f"[bold cyan]Opening '{file_name}'...[/bold cyan]")
+            
+            # If no sheet specified, get available sheets
+            if not sheet_name:
+                sheet_names = excel_handler.get_sheet_names(file_name)
+                
+                if not sheet_names:
+                    console.print(f"[bold red]Error: Could not open file '{file_name}'.[/bold red]")
+                    return
+                    
+                # If multiple sheets, ask which one to open
+                if len(sheet_names) > 1:
+                    console.print(f"[bold cyan]Available sheets:[/bold cyan]")
+                    for i, name in enumerate(sheet_names, 1):
+                        console.print(f"{i}. {name}")
+                        
+                    sheet_index = Prompt.ask(
+                        "[bold]Which sheet would you like to open? (enter number)[/bold]",
+                        choices=[str(i) for i in range(1, len(sheet_names) + 1)],
+                        default="1"
+                    )
+                    
+                    sheet_name = sheet_names[int(sheet_index) - 1]
+                else:
+                    sheet_name = sheet_names[0]
+                    
+            # Read the Excel file
+            df = excel_handler.read_excel_file(file_name, sheet_name)
+            
+            if df is None:
+                console.print(f"[bold red]Error: Could not read file '{file_name}'.[/bold red]")
+                return
+                
+            # Display data
+            console.print(f"[bold cyan]Viewing '{file_name}', sheet '{sheet_name}':[/bold cyan]")
+            
+            # Check data size
+            row_count, col_count = df.shape
+            
+            # Create a Rich table
+            table = Table(title=f"{file_name} - {sheet_name}")
+            
+            # Add columns (limit to prevent overwhelming the display)
+            max_cols = min(col_count, 15)
+            for i in range(max_cols):
+                col_name = str(df.columns[i])
+                table.add_column(col_name)
+                
+            if max_cols < col_count:
+                table.add_column("...")
+                
+            # Add rows (limit to prevent overwhelming the display)
+            max_rows = min(row_count, 20)
+            for i in range(max_rows):
+                row_data = []
+                for j in range(max_cols):
+                    cell_value = str(df.iloc[i, j])
+                    # Truncate long cell values
+                    if len(cell_value) > 50:
+                        cell_value = cell_value[:47] + "..."
+                    row_data.append(cell_value)
+                    
+                if max_cols < col_count:
+                    row_data.append("...")
+                    
+                table.add_row(*row_data)
+                
+            if max_rows < row_count:
+                table.add_row(*["..." for _ in range(max_cols + (1 if max_cols < col_count else 0))])
+                
+            console.print(table)
+            
+            console.print(f"[cyan]Showed {max_rows} of {row_count} rows and {max_cols} of {col_count} columns.[/cyan]")
+            
+            # Ask if user wants to perform operations on this file
+            if Confirm.ask("[bold]Would you like to perform operations on this file?[/bold]", default=False):
+                operation_type = Prompt.ask(
+                    "[bold]Select operation[/bold]",
+                    choices=["analyze", "filter", "chart", "save", "cancel"],
+                    default="analyze"
+                )
+                
+                if operation_type == "analyze":
+                    await self.excel_command(f"analyze data in {file_name}")
+                elif operation_type == "filter":
+                    filter_query = Prompt.ask("[bold]Enter filter condition[/bold]")
+                    await self.excel_command(f"filter data where {filter_query} from {file_name}")
+                elif operation_type == "chart":
+                    # Create proper chart command
+                    # Display available columns
+                    df = excel_handler.read_excel_file(file_name, sheet_name)
+                    if df is not None:
+                        column_table = Table(box=ROUNDED)
+                        column_table.add_column("#", style="cyan")
+                        column_table.add_column("Column Name")
+                        column_table.add_column("Data Type")
+                        
+                        for i, column in enumerate(df.columns, 1):
+                            data_type = str(df[column].dtype)
+                            column_table.add_row(str(i), column, data_type)
+                            
+                        console.print(Panel(column_table, title="[bold]Available Columns[/bold]", border_style="blue"))
+                        
+                        # Get x column
+                        x_col_idx = Prompt.ask(
+                            "[bold]Select column for X-axis (enter number)[/bold]",
+                            choices=[str(i) for i in range(1, len(df.columns) + 1)],
+                            default="1"
+                        )
+                        x_column = df.columns[int(x_col_idx) - 1]
+                        
+                        # Get y column
+                        y_col_idx = Prompt.ask(
+                            "[bold]Select column for Y-axis (enter number)[/bold]",
+                            choices=[str(i) for i in range(1, len(df.columns) + 1)],
+                            default="2"
+                        )
+                        y_column = df.columns[int(y_col_idx) - 1]
+                        
+                        # Get chart type
+                        chart_type = Prompt.ask(
+                            "[bold]Select chart type[/bold]",
+                            choices=["bar", "line", "scatter", "pie"],
+                            default="bar"
+                        )
+                        
+                        # Create chart directly
+                        console.print(f"[bold cyan]Generating {chart_type} chart of {y_column} by {x_column}...[/bold cyan]")
+                        
+                        try:
+                            chart_path = excel_handler.generate_excel_visualization(
+                                df, chart_type, x_column, y_column, f"{y_column} by {x_column}"
+                            )
+                            
+                            if isinstance(chart_path, str) and chart_path.startswith("Error"):
+                                console.print(f"[bold red]{chart_path}[/bold red]")
+                                # Suggest possible solution
+                                if "not supported between instances of 'str' and 'int'" in chart_path:
+                                    console.print("[yellow]This might be due to mixed data types. The visualization has been fixed to handle this case.[/yellow]")
+                                elif "not found in DataFrame" in chart_path:
+                                    available_cols = ", ".join([f"'{col}'" for col in df.columns])
+                                    console.print(f"[yellow]Available columns are: {available_cols}[/yellow]")
+                            else:
+                                console.print(f"[bold green]✓ Chart generated and saved to {chart_path}[/bold green]")
+                                
+                                # Ask if user wants to view the chart
+                                if Confirm.ask("[bold]View the chart?[/bold]", default=True):
+                                    try:
+                                        import os
+                                        os.system(f"start {chart_path}")
+                                    except Exception as e:
+                                        console.print(f"[bold red]Error opening chart: {e}[/bold red]")
+                        except Exception as e:
+                            console.print(f"[bold red]Error generating chart: {str(e)}[/bold red]")
+                            console.print("[yellow]This might be due to incompatible data types. Try selecting different columns or chart types.[/yellow]")
+                    else:
+                        console.print(f"[bold red]Error: Could not read file '{file_name}'.[/bold red]")
+                elif operation_type == "save":
+                    save_path = Prompt.ask("[bold]Enter file name to save[/bold]", default=f"modified_{file_name}")
+                    if excel_handler.save_dataframe_to_excel(df, save_path):
+                        console.print(f"[bold green]✓ Data saved to {save_path}[/bold green]")
+                    else:
+                        console.print(f"[bold red]Error saving data to {save_path}[/bold red]")
+        
+        elif operation["operation"] == "analyze":
+            # Analyze Excel file
+            file_name = operation.get("file_name")
+            analysis_type = operation.get("analysis_type", "summary")
+            
+            if not file_name:
+                console.print("[bold red]Error: No file name specified.[/bold red]")
+                return
+                
+            # Read the Excel file
+            console.print(f"[bold cyan]Analyzing '{file_name}'...[/bold cyan]")
+            
+            df = excel_handler.read_excel_file(file_name)
+            
+            if df is None:
+                console.print(f"[bold red]Error: Could not read file '{file_name}'.[/bold red]")
+                return
+                
+            # Perform analysis
+            analysis = excel_handler.analyze_excel_data(df, analysis_type)
+            
+            if "error" in analysis:
+                console.print(f"[bold red]Error: {analysis['error']}[/bold red]")
+                return
+                
+            # Display analysis results based on type
+            if analysis_type == "summary":
+                summary_df = pd.DataFrame(analysis["summary"])
+                
+                console.print(Panel(
+                    f"[bold]Summary Statistics for {file_name}[/bold]\n\n{summary_df.to_string()}",
+                    title="[bold]Data Analysis Results[/bold]",
+                    border_style="green",
+                    box=ROUNDED
+                ))
+                
+                # Display null values
+                null_counts = pd.Series(analysis["null_values"])
+                if null_counts.sum() > 0:
+                    console.print(Panel(
+                        f"[bold]Null Value Counts[/bold]\n\n{null_counts.to_string()}",
+                        title="[bold]Missing Data[/bold]",
+                        border_style="yellow",
+                        box=ROUNDED
+                    ))
+                    
+            elif analysis_type == "correlation":
+                corr_df = pd.DataFrame(analysis["correlation"])
+                
+                console.print(Panel(
+                    f"[bold]Correlation Matrix for {file_name}[/bold]\n\n{corr_df.to_string()}",
+                    title="[bold]Correlation Analysis[/bold]",
+                    border_style="green",
+                    box=ROUNDED
+                ))
+                
+            elif analysis_type == "descriptive":
+                console.print(f"[bold cyan]Descriptive Statistics for {file_name}:[/bold cyan]\n")
+                
+                for column, stats in analysis["descriptive"].items():
+                    stat_table = Table(title=f"Column: {column}", box=ROUNDED)
+                    stat_table.add_column("Statistic", style="cyan")
+                    stat_table.add_column("Value")
+                    
+                    for stat, value in stats.items():
+                        stat_table.add_row(stat, str(value))
+                        
+                    console.print(stat_table)
+                    console.print("")
+                    
+            # Ask if user wants to visualize the data
+            if Confirm.ask("[bold]Would you like to visualize this data?[/bold]", default=False):
+                # Simplified visualization flow
+                await self.excel_command(f"create chart from {file_name}")
+                
+        elif operation["operation"] == "create_chart":
+            # Create chart from Excel file
+            file_name = operation.get("file_name")
+            chart_type = operation.get("chart_type", "bar")
+            x_column = operation.get("x_column")
+            y_column = operation.get("y_column")
+            title = operation.get("title", f"{chart_type.capitalize()} Chart")
+            
+            if not file_name:
+                console.print("[bold red]Error: No file name specified.[/bold red]")
+                return
+                
+            # Read the Excel file
+            console.print(f"[bold cyan]Reading '{file_name}' for chart creation...[/bold cyan]")
+            
+            df = excel_handler.read_excel_file(file_name)
+            
+            if df is None:
+                console.print(f"[bold red]Error: Could not read file '{file_name}'.[/bold red]")
+                return
+                
+            # If columns not specified, ask user to select
+            if not x_column or not y_column:
+                # Display available columns
+                column_table = Table(box=ROUNDED)
+                column_table.add_column("#", style="cyan")
+                column_table.add_column("Column Name")
+                column_table.add_column("Data Type")
+                
+                for i, column in enumerate(df.columns, 1):
+                    data_type = str(df[column].dtype)
+                    column_table.add_row(str(i), column, data_type)
+                    
+                console.print(Panel(column_table, title="[bold]Available Columns[/bold]", border_style="blue"))
+                
+                # Get x column if not specified
+                if not x_column:
+                    x_col_idx = Prompt.ask(
+                        "[bold]Select column for X-axis (enter number)[/bold]",
+                        choices=[str(i) for i in range(1, len(df.columns) + 1)],
+                        default="1"
+                    )
+                    x_column = df.columns[int(x_col_idx) - 1]
+                    
+                # Get y column if not specified
+                if not y_column:
+                    y_col_idx = Prompt.ask(
+                        "[bold]Select column for Y-axis (enter number)[/bold]",
+                        choices=[str(i) for i in range(1, len(df.columns) + 1)],
+                        default="2"
+                    )
+                    y_column = df.columns[int(y_col_idx) - 1]
+            
+            # Generate chart
+            console.print(f"[bold cyan]Generating {chart_type} chart of {y_column} by {x_column}...[/bold cyan]")
+            
+            try:
+                chart_path = excel_handler.generate_excel_visualization(
+                    df, chart_type, x_column, y_column, title
+                )
+                
+                if isinstance(chart_path, str) and chart_path.startswith("Error"):
+                    console.print(f"[bold red]{chart_path}[/bold red]")
+                    # Suggest possible solution
+                    if "not supported between instances of 'str' and 'int'" in chart_path:
+                        console.print("[yellow]This might be due to mixed data types. The visualization has been fixed to handle this case.[/yellow]")
+                    elif "not found in DataFrame" in chart_path:
+                        available_cols = ", ".join([f"'{col}'" for col in df.columns])
+                        console.print(f"[yellow]Available columns are: {available_cols}[/yellow]")
+                else:
+                    console.print(f"[bold green]✓ Chart generated and saved to {chart_path}[/bold green]")
+                    
+                    # Ask if user wants to view the chart
+                    if Confirm.ask("[bold]View the chart?[/bold]", default=True):
+                        try:
+                            import os
+                            os.system(f"start {chart_path}")
+                        except Exception as e:
+                            console.print(f"[bold red]Error opening chart: {e}[/bold red]")
+            except Exception as e:
+                console.print(f"[bold red]Error generating chart: {str(e)}[/bold red]")
+                console.print("[yellow]This might be due to incompatible data types. Try selecting different columns or chart types.[/yellow]")
+                
+                # Ask if user wants to add the chart to the Excel file
+                if Confirm.ask("[bold]Add this chart to the Excel file?[/bold]", default=False):
+                    # Get sheet name
+                    sheet_names = excel_handler.get_sheet_names(file_name)
+                    sheet_name = sheet_names[0] if sheet_names else "Sheet1"
+                    
+                    # Get data range for chart (simplified)
+                    data_range = "A1:B10"  # This is a placeholder
+                    
+                    success = excel_handler.create_excel_chart(
+                        file_name, sheet_name, data_range, chart_type, title
+                    )
+                    
+                    if success:
+                        console.print(f"[bold green]✓ Chart added to {file_name}[/bold green]")
+                    else:
+                        console.print(f"[bold red]Error adding chart to {file_name}[/bold red]")
+                        
+        elif operation["operation"] == "filter_data":
+            # Filter data from Excel file
+            file_name = operation.get("file_name")
+            conditions = operation.get("conditions")
+            
+            if not file_name or not conditions:
+                console.print("[bold red]Error: File name and filter conditions are required.[/bold red]")
+                return
+                
+            # Read the Excel file
+            console.print(f"[bold cyan]Reading '{file_name}' for filtering...[/bold cyan]")
+            
+            df = excel_handler.read_excel_file(file_name)
+            
+            if df is None:
+                console.print(f"[bold red]Error: Could not read file '{file_name}'.[/bold red]")
+                return
+                
+            # Translate conditions to pandas query
+            pandas_query = excel_nlp.translate_to_pandas_query(conditions)
+            
+            console.print(f"[bold cyan]Filtering data where {pandas_query}...[/bold cyan]")
+            
+            # Apply the filter
+            filtered_df = excel_handler.query_excel_data(df, pandas_query)
+            
+            if filtered_df.empty:
+                console.print("[yellow]No data matches the filter condition.[/yellow]")
+                return
+                
+            console.print(f"[green]Found {len(filtered_df)} matching rows out of {len(df)} total.[/green]")
+            
+            # Convert filtered DataFrame to a Rich table
+            table = Table(title=f"Filtered Data from {file_name} ({pandas_query})")
+            
+            # Add columns
+            for column in filtered_df.columns:
+                table.add_column(str(column))
+                
+            # Add rows (limit to prevent overwhelming the console)
+            max_rows = 20
+            if len(filtered_df) > max_rows:
+                console.print(f"[yellow]Note: Showing first {max_rows} of {len(filtered_df)} rows[/yellow]")
+                display_df = filtered_df.head(max_rows)
+            else:
+                display_df = filtered_df
+                
+            for _, row in display_df.iterrows():
+                table.add_row(*[str(cell) for cell in row])
+                
+            console.print(table)
+            
+            # Ask if user wants to save the filtered data
+            if Confirm.ask("[bold]Save filtered data to a new Excel file?[/bold]", default=False):
+                save_path = Prompt.ask("[bold]Enter file name to save[/bold]", default=f"filtered_{file_name}")
+                
+                if excel_handler.save_dataframe_to_excel(filtered_df, save_path):
+                    console.print(f"[bold green]✓ Filtered data saved to {save_path}[/bold green]")
+                else:
+                    console.print(f"[bold red]Error saving filtered data to {save_path}[/bold red]")
+                    
+        elif operation["operation"] == "extract_data":
+            # Extract data from Excel file
+            file_name = operation.get("file_name")
+            columns = operation.get("columns")
+            row_limit = operation.get("row_limit")
+            
+            if not file_name:
+                console.print("[bold red]Error: No file name specified.[/bold red]")
+                return
+                
+            # Read the Excel file
+            console.print(f"[bold cyan]Extracting data from '{file_name}'...[/bold cyan]")
+            
+            df = excel_handler.read_excel_file(file_name)
+            
+            if df is None:
+                console.print(f"[bold red]Error: Could not read file '{file_name}'.[/bold red]")
+                return
+                
+            # Filter columns if specified
+            if columns:
+                # Find matching columns (case-insensitive partial match)
+                matching_columns = []
+                for col_pattern in columns:
+                    col_pattern = col_pattern.strip().lower()
+                    matches = [col for col in df.columns if col_pattern in str(col).lower()]
+                    matching_columns.extend(matches)
+                    
+                if matching_columns:
+                    df = df[matching_columns]
+                else:
+                    console.print("[bold yellow]Warning: No matching columns found. Showing all columns.[/bold yellow]")
+                    
+            # Limit rows if specified
+            if row_limit:
+                if row_limit < len(df):
+                    df = df.head(row_limit)
+                    console.print(f"[bold yellow]Showing first {row_limit} of {len(df)} rows.[/bold yellow]")
+            
+            # Convert DataFrame to a Rich table
+            table = Table(title=f"Extracted Data from {file_name}")
+            
+            # Add columns
+            for column in df.columns:
+                table.add_column(str(column))
+                
+            # Add rows (limit to prevent overwhelming the console)
+            max_rows = 30
+            if len(df) > max_rows:
+                console.print(f"[yellow]Note: Showing first {max_rows} of {len(df)} rows[/yellow]")
+                display_df = df.head(max_rows)
+            else:
+                display_df = df
+                
+            for _, row in display_df.iterrows():
+                table.add_row(*[str(cell) for cell in row])
+                
+            console.print(table)
+            
+            # Ask if user wants to save the extracted data
+            if Confirm.ask("[bold]Save extracted data to a new Excel file?[/bold]", default=False):
+                save_path = Prompt.ask("[bold]Enter file name to save[/bold]", default=f"extracted_{file_name}")
+                
+                if excel_handler.save_dataframe_to_excel(df, save_path):
+                    console.print(f"[bold green]✓ Extracted data saved to {save_path}[/bold green]")
+                else:
+                    console.print(f"[bold red]Error saving extracted data to {save_path}[/bold red]")
+                    
+        elif operation["operation"] == "excel_query":
+            # Handle generic Excel query
+            query = operation.get("query")
+            file_name = operation.get("file_name")
+            
+            console.print(f"[bold cyan]Analyzing Excel query: '{query}'[/bold cyan]")
+            
+            # If file specified, try to read it
+            df = None
+            if file_name:
+                console.print(f"[bold cyan]Reading '{file_name}'...[/bold cyan]")
+                df = excel_handler.read_excel_file(file_name)
+                
+            # Use AI to interpret the query and generate a response
+            prompt = f"The user has the following Excel query: {query}\n\n"
+            
+            if df is not None:
+                # Include a sample of the data
+                prompt += f"Here's sample data from {file_name}:\n"
+                prompt += df.head(5).to_string() + "\n\n"
+                
+            prompt += "Please provide a concise response explaining what Excel operations would address this query. Include specific Excel formulas, functions, or techniques that would be helpful."
+            
+            # Get AI response 
+            console.print(f"[bold cyan]Analyzing your Excel query...[/bold cyan]")
+            response = await self.assistant.answer_async(prompt)
+            
+            # Display response
+            console.print(Panel(response, title="[bold]Excel Assistant Response[/bold]", border_style="green"))
+            
+        else:
+            console.print(f"[bold red]Error: Unknown or unsupported Excel operation '{operation['operation']}'[/bold red]")
+            console.print("Type [bold cyan]/excel[/bold cyan] for help with available commands.")
+
+    async def code_edit_command(self, args=None):
+        """Handle code edit command using OpenAI or Google AI."""
+        from rich.prompt import Prompt
+        from rich.console import Console
+        from rich.panel import Panel
+        
+        console = Console()
+        
+        if not args:
+            console.print(Panel(
+                "The code-edit command allows you to edit code files using natural language.\n\n"
+                "[bold cyan]Syntax:[/bold cyan]\n"
+                "• [bold]/code-edit [file_path][/bold] - Edit a code file\n"
+                "• [bold]/code-edit [file_path] [instructions][/bold] - Edit a code file with specific instructions\n\n"
+                "[bold cyan]Examples:[/bold cyan]\n"
+                "• [bold]/code-edit my_script.py[/bold] - Edit the code file\n"
+                "• [bold]/code-edit my_script.py \"Add a comment at the beginning of the file\"[/bold]\n\n"
+                "[bold cyan]Options:[/bold cyan]\n"
+                "• You can use natural language to describe changes\n"
+                "• You can specify specific instructions for the changes",
+                title="[bold]Code Edit Command Help[/bold]",
+                border_style="blue",
+                box=box.ROUNDED
+            ))
+            return
+
+        # Parse the command
+        parts = args.split(maxsplit=1)
+        file_path = parts[0]
+        instructions = parts[1] if len(parts) > 1 else ""
+
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            console.print(f"[bold red]Error: File '{file_path}' not found.[/bold red]")
+            return
+
+        # Use AI to generate the edited file
+        console.print(f"[bold cyan]Editing file '{file_path}'...[/bold cyan]")
+        edited_file = await self.assistant.answer_async(f"Edit the file '{file_path}' with the following instructions: {instructions}")
+
+        # Save the edited file
+        with open(file_path, 'w') as f:
+            f.write(edited_file)
+
+        console.print(f"[bold green]✓ File '{file_path}' edited successfully.[/bold green]")
 
     async def document_command(self, args):
         """
@@ -2861,6 +3551,7 @@ class AIAssistantApp:
         """
         # Import intent parser
         from ai_assistant.utils.whatsapp_intent import WhatsAppIntentParser
+        from ..core.prompts import ROLE_PROMPTS
         
         # Initialize WhatsApp manager if not already done
         if not self.whatsapp_manager:
@@ -2886,7 +3577,11 @@ class AIAssistantApp:
                 "• [bold cyan]connect[/bold cyan] - Connect to WhatsApp Web\n"
                 "• [bold cyan]disconnect[/bold cyan] - Disconnect from WhatsApp Web\n"
                 "• [bold cyan]send[/bold cyan] - Send a WhatsApp message\n"
-                "• [bold cyan]contacts[/bold cyan] - List recent contacts",
+                "• [bold cyan]ai[/bold cyan] - Use AI to compose a message\n"
+                "• [bold cyan]contacts[/bold cyan] - List recent contacts\n\n"
+                "[bold cyan]Role-based message composition:[/bold cyan]\n"
+                "• [bold cyan]ai <recipient> [role] [instructions][/bold cyan] - Generate a message using a specific AI role\n"
+                "• Example: [bold cyan]/whatsapp ai +1234567890 Business \"Schedule a meeting for tomorrow\"[/bold cyan]",
                 title="[bold]WhatsApp Help[/bold]",
                 border_style="cyan",
                 box=box.ROUNDED
@@ -2905,6 +3600,90 @@ class AIAssistantApp:
         elif subcommand == "contacts":
             result = await self.handle_whatsapp_operation({'action': 'list_contacts'})
             self.display_info(result)
+        elif subcommand == "ai":
+            # AI-assisted message composition
+            if len(args_list) >= 2:
+                recipient = args_list[1]
+                
+                # Check if the third argument is a valid role
+                role = None
+                instruction = ""
+                
+                if len(args_list) >= 3:
+                    potential_role = args_list[2]
+                    
+                    # Check if it's a valid role
+                    if potential_role in ROLE_PROMPTS:
+                        role = potential_role
+                        # Join the rest of the arguments as the instruction
+                        if len(args_list) >= 4:
+                            instruction = " ".join(args_list[3:])
+                    else:
+                        # No valid role, treat everything after recipient as instruction
+                        instruction = " ".join(args_list[2:])
+                
+                # Show available roles if no instruction is provided
+                if not instruction:
+                    console.print("[bold cyan]Available Roles:[/bold cyan]")
+                    for role_name in ROLE_PROMPTS.keys():
+                        console.print(f"• [bold]{role_name}[/bold]")
+                    
+                    # Prompt for role if not provided
+                    if not role:
+                        use_role = Confirm.ask("[bold]Do you want to use a specific AI role?[/bold]", default=False)
+                        if use_role:
+                            role_options = list(ROLE_PROMPTS.keys())
+                            role_choice = Prompt.ask("[bold]Choose a role[/bold]", choices=role_options, default="General")
+                            role = role_choice
+                    
+                    # Get instruction
+                    instruction = Prompt.ask("[bold]Enter your message instructions[/bold]")
+                
+                # Create the intent with role if specified
+                intent = {
+                    'action': 'ai_compose_whatsapp',
+                    'recipient': recipient,
+                    'instruction': instruction
+                }
+                
+                if role:
+                    intent['role'] = role
+                
+                result = await self.handle_whatsapp_operation(intent)
+                self.display_info(result)
+            else:
+                # No recipient provided, go to interactive mode
+                recipient = Prompt.ask("[bold]Enter recipient (phone number with country code or contact name)[/bold]")
+                
+                # Show available roles
+                console.print("[bold cyan]Available Roles:[/bold cyan]")
+                for role_name in ROLE_PROMPTS.keys():
+                    console.print(f"• [bold]{role_name}[/bold]")
+                
+                # Ask if user wants to use a specific role
+                use_role = Confirm.ask("[bold]Do you want to use a specific AI role?[/bold]", default=False)
+                role = None
+                
+                if use_role:
+                    role_options = list(ROLE_PROMPTS.keys())
+                    role_choice = Prompt.ask("[bold]Choose a role[/bold]", choices=role_options, default="General")
+                    role = role_choice
+                
+                # Get message instructions
+                instruction = Prompt.ask("[bold]Enter your message instructions[/bold]")
+                
+                # Create the intent with role if specified
+                intent = {
+                    'action': 'ai_compose_whatsapp',
+                    'recipient': recipient,
+                    'instruction': instruction
+                }
+                
+                if role:
+                    intent['role'] = role
+                
+                result = await self.handle_whatsapp_operation(intent)
+                self.display_info(result)
         elif subcommand == "send":
             # Extract recipient and message if provided
             if len(args_list) >= 3:
@@ -2947,6 +3726,9 @@ class AIAssistantApp:
             str: Result of the operation
         """
         try:
+            # Import role prompts
+            from ..core.prompts import ROLE_PROMPTS
+            
             # Ensure WhatsApp is initialized
             if not self.whatsapp_manager:
                 self.display_warning("WhatsApp integration is not configured. Setting it up now.")
@@ -2959,6 +3741,40 @@ class AIAssistantApp:
                 length = Prompt.ask("[bold]How long should the message be?[/bold]", choices=["short", "medium", "long"], default="medium")
                 instruction = f"Write a {tone} WhatsApp message to {recipient} about {purpose}. The message should be {length} in length."
             
+            # Ask if the user wants to use a specific role for composing
+            use_role = Confirm.ask("[bold]Do you want to use a specific AI role for composing this message?[/bold]", default=False)
+            
+            selected_role = "General"  # Default role
+            
+            if use_role:
+                # Display available roles
+                role_table = Table(box=box.ROUNDED)
+                role_table.add_column("Option", style="cyan")
+                role_table.add_column("Role")
+                role_table.add_column("Description")
+                
+                for i, (role, description) in enumerate(ROLE_PROMPTS.items(), 1):
+                    # Truncate description if too long
+                    short_desc = description.split("\n")[0][:50] + "..." if len(description) > 50 else description
+                    role_table.add_row(str(i), role, short_desc)
+                    
+                console.print(Panel(
+                    role_table,
+                    title="[bold]Assistant Roles[/bold]",
+                    border_style="blue",
+                    box=box.ROUNDED
+                ))
+                
+                # Let user select role
+                role_choices = [str(i) for i in range(1, len(ROLE_PROMPTS) + 1)]
+                role_choice = Prompt.ask("[bold]Select a role for message composition[/bold]", choices=role_choices, default="1")
+                
+                # Get the selected role
+                role_idx = int(role_choice) - 1
+                if 0 <= role_idx < len(ROLE_PROMPTS):
+                    selected_role = list(ROLE_PROMPTS.keys())[role_idx]
+                    console.print(f"[green]Using {selected_role} role for message composition[/green]")
+            
             # Use Rich progress bar for AI processing
             with Progress(
                 SpinnerColumn(),
@@ -2968,8 +3784,11 @@ class AIAssistantApp:
             ) as progress:
                 task = progress.add_task("[green]Thinking...", total=None)
                 
-                # Create a prompt for the AI
-                ai_prompt = f"Compose a WhatsApp message to {recipient}. The message should be about: {instruction}"
+                # Get the prompt for the selected role
+                role_prompt = ROLE_PROMPTS.get(selected_role, ROLE_PROMPTS["General"])
+                
+                # Create a prompt for the AI that includes the role context
+                ai_prompt = f"{role_prompt}\n\nNow, compose a WhatsApp message to {recipient}. The message should be about: {instruction}"
                 ai_prompt += "\nThe message should be concise and appropriate for WhatsApp. Don't include any introduction or explanation, just the message content."
                 
                 # Generate the message
@@ -2984,7 +3803,7 @@ class AIAssistantApp:
             
             # Preview the message with improved formatting
             console.print(Panel(
-                f"[bold]Generated message:[/bold]\n\n{generated_message}",
+                f"[bold]Generated message (using {selected_role} role):[/bold]\n\n{generated_message}",
                 title="[bold]AI-Generated WhatsApp Message[/bold]",
                 border_style="cyan",
                 box=box.ROUNDED
@@ -2996,8 +3815,9 @@ class AIAssistantApp:
                 "1": "Send as is",
                 "2": "Edit before sending",
                 "3": "Regenerate with new instructions",
-                "4": "Save as draft (not implemented)",
-                "5": "Cancel"
+                "4": "Regenerate with different role",
+                "5": "Save as draft (not implemented)",
+                "6": "Cancel"
             }
             
             # Display options with styling
@@ -3029,12 +3849,21 @@ class AIAssistantApp:
                     self.display_error(f"Failed to send edited message to {recipient}")
                     return f"Failed to send edited message to {recipient}"
                 
-            elif choice == "3":  # Regenerate
+            elif choice == "3":  # Regenerate with new instructions
                 console.print("[bold cyan]New instructions for regenerating the message:[/bold cyan]")
                 new_instructions = Prompt.ask("[bold]New instructions[/bold]")
                 return await self.whatsapp_ai_compose(recipient, new_instructions)
                 
-            elif choice == "4":  # Cancel
+            elif choice == "4":  # Regenerate with different role
+                # Call the method again but force role selection
+                console.print("[bold cyan]Select a different role for message composition:[/bold cyan]")
+                return await self.whatsapp_ai_compose(recipient, instruction)
+                
+            elif choice == "5":  # Save as draft
+                self.display_warning("Draft saving is not implemented yet")
+                return "Draft saving is not implemented yet"
+                
+            elif choice == "6":  # Cancel
                 self.display_warning("Message sending canceled")
                 return "Message sending canceled"
                 
@@ -3113,15 +3942,28 @@ class AIAssistantApp:
                 instruction = intent.get('ai_instruction', '')
                 tone = intent.get('tone', 'neutral')
                 
-                # Generate a message using the AI assistant
-                ai_prompt = f"Write a WhatsApp message to {recipient} with a {tone} tone. The message should be about: {instruction}"
-                generated_message = await self.assistant.generate_text(ai_prompt)
+                # Import role prompts
+                from ..core.prompts import ROLE_PROMPTS
+                
+                # Check if a specific role is requested
+                role = intent.get('role', 'General')
+                if role not in ROLE_PROMPTS:
+                    role = 'General'
+                
+                # Get the role prompt
+                role_prompt = ROLE_PROMPTS.get(role, ROLE_PROMPTS['General'])
+                
+                # Generate a message using the AI assistant with the selected role
+                ai_prompt = f"{role_prompt}\n\nNow, compose a WhatsApp message to {recipient} with a {tone} tone. The message should be about: {instruction}"
+                ai_prompt += "\nThe message should be concise and appropriate for WhatsApp. Don't include any introduction or explanation, just the message content."
+                
+                generated_message = await self.assistant.answer_async(ai_prompt)
                 
                 # Use the generated message if it's not empty
                 if generated_message:
                     message = generated_message
                     console.print(Panel(
-                        f"[bold]Generated message:[/bold]\n\n{message}",
+                        f"[bold]Generated message (using {role} role):[/bold]\n\n{message}",
                         title="[bold]AI-Generated Message[/bold]",
                         border_style="cyan",
                         box=box.ROUNDED
@@ -3149,11 +3991,66 @@ class AIAssistantApp:
         elif action == 'ai_compose_whatsapp':
             recipient = intent.get('recipient', '')
             instruction = intent.get('instruction', '')
+            role = intent.get('role', None)  # Check if a specific role is requested
             
             if not recipient:
                 self.display_error("Recipient is required")
                 return "Recipient is required"
-                
+            
+            # If a role is specified in the intent, we'll set up a special handler
+            if role:
+                from ..core.prompts import ROLE_PROMPTS
+                if role in ROLE_PROMPTS:
+                    # Modify the instruction to include the role
+                    console.print(f"[green]Using {role} role for message composition[/green]")
+                    
+                    # We'll use the existing method but pre-select the role
+                    role_prompt = ROLE_PROMPTS.get(role, ROLE_PROMPTS["General"])
+                    
+                    # Use Rich progress bar for AI processing
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn(f"[bold blue]AI is composing your message using {role} role...[/bold blue]"),
+                        console=console,
+                        transient=True
+                    ) as progress:
+                        task = progress.add_task("[green]Thinking...", total=None)
+                        
+                        # Create a prompt for the AI that includes the role context
+                        ai_prompt = f"{role_prompt}\n\nNow, compose a WhatsApp message to {recipient}. The message should be about: {instruction}"
+                        ai_prompt += "\nThe message should be concise and appropriate for WhatsApp. Don't include any introduction or explanation, just the message content."
+                        
+                        # Generate the message
+                        generated_message = await self.assistant.answer_async(ai_prompt)
+                    
+                    # Clean up the generated message
+                    generated_message = generated_message.strip()
+                    if generated_message.startswith('"') and generated_message.endswith('"'):
+                        generated_message = generated_message[1:-1]
+                    
+                    # Preview the message with improved formatting
+                    console.print(Panel(
+                        f"[bold]Generated message (using {role} role):[/bold]\n\n{generated_message}",
+                        title="[bold]AI-Generated WhatsApp Message[/bold]",
+                        border_style="cyan",
+                        box=box.ROUNDED
+                    ))
+                    
+                    # Ask to send the message
+                    if Confirm.ask("[bold]Send this message?[/bold]", default=True):
+                        console.print(f"[bold cyan]Sending message to {recipient}...[/bold cyan]")
+                        success = await asyncio.to_thread(self.whatsapp_manager.send_message, recipient, generated_message)
+                        
+                        if success:
+                            self.display_success(f"Message sent to {recipient}")
+                            return f"Message sent to {recipient}"
+                        else:
+                            self.display_error(f"Failed to send message to {recipient}")
+                            return f"Failed to send message to {recipient}"
+                    else:
+                        # Use the standard composer for more options
+                        console.print("[cyan]Using the full message composer for more options...[/cyan]")
+            
             # Use the dedicated AI compose function
             return await self.whatsapp_ai_compose(recipient, instruction)
             

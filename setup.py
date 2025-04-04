@@ -46,7 +46,12 @@ setup(
         "rich",
         "email-validator>=2.0.0", # For email validation
         "selenium",
-        "webdriver-manager"
+        "webdriver-manager",
+        "matplotlib>=3.5.0",  # For Excel visualizations
+        "numpy>=1.20.0",      # For Excel data processing
+        "pandas>=1.3.0",      # Enhanced Excel handling
+        "openpyxl>=3.0.9",    # Excel file operations
+        "xlwings>=0.27.0"     # Excel application interaction
     ],
     license="MIT",
     license_files=["LICENSE"],
