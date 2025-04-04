@@ -22,6 +22,7 @@ from ..integrations.email_manager import EmailManager
 from ..utils.email_intent import EmailIntentParser
 from ai_assistant.integrations.whatsapp_manager import WhatsAppManager
 from ai_assistant.utils.whatsapp_intent import WhatsAppIntentParser
+from ai_assistant.utils.speech import SpeechRecognizer
 
 # Rich UI components
 from rich.console import Console
@@ -3304,6 +3305,193 @@ class AIAssistantApp:
             except Exception as e:
                 logger.error(f"Error in main loop: {str(e)}")
                 self.display_error(f"An error occurred: {str(e)}")
+
+    async def handle_speech_input(self):
+        """Handle speech input from the user."""
+        from ai_assistant.utils.github_intent import GitHubIntentParser
+        from ai_assistant.utils.file_intent import FileIntentParser
+        from ai_assistant.utils.app_intent import AppIntentParser
+        from ai_assistant.utils.email_intent import EmailIntentParser
+        from ai_assistant.utils.whatsapp_intent import WhatsAppIntentParser
+        
+        if not self.speech_recognizer:
+            self.display_error("Speech recognition component not initialized.")
+            self.display_info("You might need to configure speech services using '/configure speech' or ensure necessary libraries are installed.")
+            return
+
+        console.print("\n🎙️  Listening for your command (say 'stop listening' to cancel)...")
+        try:
+            # Use the existing listen_and_recognize method
+            recognized_text = await asyncio.to_thread(self.speech_recognizer.listen_and_recognize)
+            
+            if recognized_text:
+                console.print(f"[dim]Heard:[/dim] [italic]'{recognized_text}'[/italic]")
+                if recognized_text.lower() == "stop listening":
+                    self.display_info("Speech input cancelled.")
+                    return
+                    
+                # Check for exit command
+                if recognized_text.lower() in ["exit", "quit", "/exit", "/quit"]:
+                    console.print("[bold green]Goodbye![/bold green]")
+                    raise KeyboardInterrupt()
+                
+                # Process special commands
+                if recognized_text.startswith("/"):
+                    if await self.process_command(recognized_text):
+                        return
+                
+                # Initialize intent parsers if not already done
+                github_intent_parser = GitHubIntentParser()
+                file_intent_parser = FileIntentParser()
+                app_intent_parser = AppIntentParser()
+                email_intent_parser = EmailIntentParser()
+                whatsapp_intent_parser = WhatsAppIntentParser()
+                
+                # Check for GitHub operations
+                github_intent = github_intent_parser.parse_intent(recognized_text)
+                if github_intent:
+                    result = await self.handle_github_operation(github_intent)
+                    self._format_and_display_response(result)
+                    return
+
+                # Check for WhatsApp operations
+                whatsapp_intent = whatsapp_intent_parser.parse_intent(recognized_text)
+                logger.info(f"WhatsApp intent detection result: {whatsapp_intent}")
+                
+                if whatsapp_intent:
+                    result = await self.handle_whatsapp_operation(whatsapp_intent)
+                    # Format the response to make it visible
+                    self._format_and_display_response(result)
+                    return
+                    
+                # If the shared text appears to be a WhatsApp-related request with a phone number
+                if ("message" in recognized_text.lower() or "whatsapp" in recognized_text.lower()) and re.search(r'[+=]?\d{10,}', recognized_text):
+                    logger.info("Detected potential WhatsApp message to phone number")
+                    # Try to extract recipient (phone number) and message content
+                    phone_match = re.search(r'(?:to\s+)?([+=]?\d{10,})', recognized_text)
+                    if phone_match:
+                        recipient = phone_match.group(1)
+                        instruction = recognized_text  # Use full text as instruction
+                        
+                        logger.info(f"Creating manual WhatsApp intent for phone: {recipient}")
+                        # Create a WhatsApp intent
+                        whatsapp_intent = {
+                            'action': 'ai_compose_whatsapp',
+                            'recipient': recipient.strip(),
+                            'instruction': instruction
+                        }
+                        
+                        result = await self.handle_whatsapp_operation(whatsapp_intent)
+                        self._format_and_display_response(result)
+                        return
+                    
+                # Direct pattern match for AI write message with phone number
+                ai_whatsapp_phone_match = re.search(r'(?:ai|assistant|help)\s+(?:write|compose|draft|create)\s+(?:a\s+)?(?:message|msg)(?:\s+to\s+|\s+for\s+)?([+=]?\d{10,})', recognized_text.lower())
+                if ai_whatsapp_phone_match:
+                    logger.info("Direct pattern match for AI WhatsApp message to phone")
+                    recipient = ai_whatsapp_phone_match.group(1)
+                    
+                    # Create a WhatsApp intent
+                    whatsapp_intent = {
+                        'action': 'ai_compose_whatsapp',
+                        'recipient': recipient.strip(),
+                        'instruction': recognized_text
+                    }
+                    
+                    result = await self.handle_whatsapp_operation(whatsapp_intent)
+                    self._format_and_display_response(result)
+                    return
+                
+                # Check for Email operations
+                email_intent = email_intent_parser.parse_intent(recognized_text)
+                if email_intent:
+                    result = await self.handle_email_operation(email_intent, prompt=recognized_text)
+                    self._format_and_display_response(result)
+                    return
+                    
+                # Check for File operations
+                file_intent = file_intent_parser.parse_intent(recognized_text)
+                if file_intent:
+                    result = await self.handle_file_operation(file_intent)
+                    self._format_and_display_response(result)
+                    return
+                    
+                # Check for App operations
+                app_intent = app_intent_parser.parse_intent(recognized_text)
+                if app_intent:
+                    result = await self.handle_app_operation(app_intent)
+                    self._format_and_display_response(result)
+                    return
+                
+                # Process as a regular question
+                include_screenshot = False  # For speech commands, don't include screenshot by default
+                
+                # Use Rich progress bar
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[bold blue]Processing...[/bold blue]"),
+                    console=console,
+                    transient=True
+                ) as progress:
+                    task = progress.add_task("[green]Thinking...", total=None)
+                    
+                    try:
+                        screenshot_encoded = self.desktop_screenshot.capture() if include_screenshot else None
+                        response = await self.assistant.answer_async(recognized_text, screenshot_encoded)
+                        
+                        # Display response with syntax highlighting for code blocks
+                        self._format_and_display_response(response)
+                        
+                    except Exception as e:
+                        logger.error(f"Question processing error: {e}")
+                        console.print(f"\n[bold red]❌ Error processing question: {e}[/bold red]")
+            else:
+                # listen_and_recognize handles displaying the error internally
+                pass # Error/warning already displayed by SpeechRecognizer
+        except Exception as e:
+            logger.error(f"Error during speech input handling: {e}", exc_info=True)
+            self.display_error(f"An error occurred during speech recognition: {e}")
+
+
+    def _format_and_display_response(self, response):
+        """Format and display AI response with Rich UI enhancements."""
+        # Check if response is None or empty
+        if not response:
+            logger.warning("Received empty response from assistant")
+            console.print("[yellow]No response received from assistant.[/yellow]")
+            return
+            
+        # Check for code blocks in the response
+        if "```" in response:
+            # Split the response by code blocks
+            parts = response.split("```")
+            
+            # Display each part with appropriate formatting
+            for i, part in enumerate(parts):
+                if i == 0:
+                    # First part is always text before the first code block
+                    if part.strip():
+                        console.print(Markdown(part.strip()))
+                elif i % 2 == 1:
+                    # Odd-indexed parts are code blocks
+                    # Extract language if specified (e.g., ```python)
+                    code_lines = part.strip().split('\n')
+                    if code_lines and not code_lines[0].isspace() and len(code_lines[0].strip()) > 0:
+                        lang = code_lines[0].strip().lower()
+                        code = '\n'.join(code_lines[1:])
+                    else:
+                        lang = "text"
+                        code = part.strip()
+                    
+                    # Display code with syntax highlighting
+                    console.print(Syntax(code, lang, theme="monokai", line_numbers=True, word_wrap=True))
+                else:
+                    # Even-indexed parts (except 0) are text between code blocks
+                    if part.strip():
+                        console.print(Markdown(part.strip()))
+        else:
+            # No code blocks, display as markdown
+            console.print(Markdown(response))
 
 def load_config(config_path="config.json"):
     """

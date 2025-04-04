@@ -52,6 +52,16 @@ class SpeechRecognizer:
             print(f"\n❌ Speech recognition error: {e}")
             logger.error(f"Speech recognition error: {e}")
             return None
+    
+    def listen_and_recognize(self):
+        """
+        Listen for speech and recognize it.
+        This is a wrapper method used by the app.
+        
+        Returns:
+            str: Recognized speech text or None if not recognized
+        """
+        return self.listen()
 
 # Keep the standalone function for backward compatibility
 def listen_for_speech():
